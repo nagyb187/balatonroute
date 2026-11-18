@@ -375,12 +375,13 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
     function initMap() {
       extendMarasToShore();
       map = L.map('map').setView([46.91, 17.87], 10);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap', maxZoom: 18
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>', maxZoom: 18
       }).addTo(map);
       L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-        attribution: '© OpenSeaMap', maxZoom: 18
+        attribution: '&copy; <a href="https://www.openseamap.org" target="_blank" rel="noopener">OpenSeaMap</a> contributors', maxZoom: 18
       }).addTo(map);
+      map.attributionControl.addAttribution('Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)');
       lakePolyLayer = L.polygon(balatonPolygon, {
         color: '#38bdf8', weight: 1.5, fillColor: '#0ea5e9', fillOpacity: 0.08
       }).addTo(map);
