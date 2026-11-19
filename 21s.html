@@ -378,6 +378,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openseamap.org" target="_blank" rel="noopener">OpenSeaMap</a> contributors', maxZoom: 18
       }).addTo(map);
+      map.attributionControl.addAttribution('Adatbázis: <a href="https://odp.met.hu/" target="_blank" rel="noopener">Meteorológiai Adattár, HungaroMet Nonprofit Zrt.</a>, saját feldolgozás');
       map.attributionControl.addAttribution('Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)');
       lakePolyLayer = L.polygon(balatonPolygon, {
         color: '#38bdf8', weight: 1.5, fillColor: '#0ea5e9', fillOpacity: 0.08
