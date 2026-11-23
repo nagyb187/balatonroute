@@ -2332,7 +2332,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       for (let i = 0; i < tacks.length; i++) {
         const tp = tacks[i];
         const tt = (timed[tp.i] && timed[tp.i].t) || 0;
-        rtePts.push({ lat: tp.lat, lon: tp.lon, name: 'Fordulás ' + (i + 1), t: tt });
+        rtePts.push({ lat: tp.lat, lon: tp.lon, name: 'Pont ' + (i + 1), t: tt });
       }
       const last = path[path.length - 1];
       rtePts.push({ lat: last[0], lon: last[1], name: toName, t: s.t || s.durationH || 0 });
