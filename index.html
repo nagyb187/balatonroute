@@ -161,7 +161,7 @@
       color: #e2e8f0;
       font-size: 0.88rem;
     }
-    #recalcBtn[hidden] { display: none !important; }
+    #recalcBtn[hidden], #planBtn[hidden] { display: none !important; }
     #recalcBtn { margin-top: 8px; }
     button.btn-share:hover { background: #475569; }
     button.btn-share:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
@@ -308,7 +308,7 @@
     <div class="card">
       <div id="shareNotice" hidden></div>
       <button type="button" class="btn-primary" id="recalcBtn" hidden>Számold újra friss széllel</button>
-      <button class="btn-primary" onclick="planFullRoute()">Isochrone útvonal (összes kijelölt)</button>
+      <button type="button" class="btn-primary" id="planBtn" onclick="planFullRoute()">Isochrone útvonal (összes kijelölt)</button>
       <div id="result" style="display:none;" class="result"></div>
       <div id="shareRow" hidden>
         <button type="button" class="btn-share" id="shareRouteBtn">Megosztás</button>
@@ -1665,10 +1665,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         ${clampedRows.length ? ('<div class="warn">Sárga: az indulás (' + startLabel + ') kívül esik a modellből. ' + clampedRows.map(r => r.label + ' csak ' + fmtShort(r.until) + '-ig tart').join('; ') + '.</div>') : ''}
       `;
       setupScrub(rows);
-      const noticeEl = document.getElementById('shareNotice');
-      if (noticeEl) noticeEl.hidden = true;
-      const recalcEl = document.getElementById('recalcBtn');
-      if (recalcEl) recalcEl.hidden = true;
+      exitSnapshotMode();
       await captureShareState(best);
       showShareButton();
       showDonateBar();
@@ -2106,6 +2103,19 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       if (row) row.hidden = false;
     }
 
+    function setPlanButtons(mode) {
+      const recalc = document.getElementById('recalcBtn');
+      const plan = document.getElementById('planBtn');
+      if (recalc) recalc.hidden = mode !== 'snapshot';
+      if (plan) plan.hidden = mode === 'snapshot';
+    }
+
+    function exitSnapshotMode() {
+      const noticeEl = document.getElementById('shareNotice');
+      if (noticeEl) noticeEl.hidden = true;
+      setPlanButtons('live');
+    }
+
     function showShareNotice(kind, opts) {
       const el = document.getElementById('shareNotice');
       if (!el) return;
@@ -2123,8 +2133,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         el.textContent = 'Megosztott útvonal – számítva: ' + when
           + (src ? ', ' + src : '') + ' előrejelzéssel.';
         el.hidden = false;
-        const recalc = document.getElementById('recalcBtn');
-        if (recalc) recalc.hidden = false;
+        setPlanButtons('snapshot');
         return;
       }
       el.classList.toggle('past', !!o.past);
@@ -2132,8 +2141,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         ? 'Megosztott útvonal: a beállítások betöltődtek, de az indulási idő már elmúlt. Az előrejelzés azóta változhatott — módosítsd az indulást, vagy számold ki újra.'
         : 'Megosztott útvonal: a beállítások betöltődtek. Az előrejelzés azóta változhatott — nyomd meg a Számold ki gombot (Isochrone útvonal).';
       el.hidden = false;
-      const recalc = document.getElementById('recalcBtn');
-      if (recalc) recalc.hidden = true;
+      setPlanButtons('settings');
     }
 
     function displaySnapshot(snap) {
