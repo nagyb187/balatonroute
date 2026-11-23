@@ -134,6 +134,57 @@
     .site-footer .footer-links { color: #cbd5e1; }
     .site-footer .disclaimer { color: #94a3b8; }
     .site-footer .credit { color: #64748b; font-size: 0.75rem; }
+
+    #shareNotice {
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #1e3a5f;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+    #shareNotice[hidden] { display: none !important; }
+    #shareNotice.past {
+      background: #422006;
+      border-color: #854d0e;
+      color: #fbbf24;
+    }
+    #shareRow { margin-top: 10px; }
+    #shareRow[hidden] { display: none !important; }
+    button.btn-share {
+      width: auto;
+      margin: 0;
+      padding: 8px 14px;
+      background: #334155;
+      color: #e2e8f0;
+      font-size: 0.88rem;
+    }
+    button.btn-share:hover { background: #475569; }
+    button.btn-share:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+    #shareToast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(10px);
+      background: #134e4a;
+      color: #ecfdf5;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 2000;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    }
+    #shareToast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     @media (max-width: 420px) {
       .header { gap: 8px; padding: 8px 12px; }
       .header-logo { width: 32px; height: 32px; }
@@ -253,8 +304,12 @@
       <div class="status" id="fcStatus">A met.hu mérés a csúszkán beállított ideig keveredik a modellel, ha le van töltve és az indulás most van.</div>
     </div>
     <div class="card">
+      <div id="shareNotice" hidden></div>
       <button class="btn-primary" onclick="planFullRoute()">Isochrone útvonal (összes kijelölt)</button>
       <div id="result" style="display:none;" class="result"></div>
+      <div id="shareRow" hidden>
+        <button type="button" class="btn-share" id="shareRouteBtn">Megosztás</button>
+      </div>
       <div id="donateBar" class="donate-bar" hidden>
         <span class="donate-bar-text">Hasznos volt? Egy kávéval támogathatod 🙏</span>
         <span class="donate-bar-links">
@@ -1596,6 +1651,8 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         ${clampedRows.length ? ('<div class="warn">Sárga: az indulás (' + startLabel + ') kívül esik a modellből. ' + clampedRows.map(r => r.label + ' csak ' + fmtShort(r.until) + '-ig tart').join('; ') + '.</div>') : ''}
       `;
       setupScrub(rows);
+      captureShareState();
+      showShareButton();
       showDonateBar();
     }
 
@@ -1650,10 +1707,318 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       if (close) close.addEventListener('click', dismissDonateBar);
     }
 
+
+    const SHARE_KEYS = ['from', 'to', 'boat', 't', 'mix', 'm', 'nc'];
+    const MODEL_ALIAS = {
+      icon_d2: 'd2',
+      icon_eu: 'eu',
+      chmi_aladin_central_europe_2km: 'aladin',
+      geosphere_seamless: 'arome',
+      gfs_seamless: 'gfs'
+    };
+    const MODEL_BY_ALIAS = {
+      d2: 'icon_d2',
+      eu: 'icon_eu',
+      aladin: 'chmi_aladin_central_europe_2km',
+      arome: 'geosphere_seamless',
+      gfs: 'gfs_seamless'
+    };
+    let lastShareQuery = null;
+    let lastShareText = '';
+    let shareToastTimer = null;
+
+    function parseLatLonParam(s) {
+      if (s == null) return null;
+      const m = String(s).trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+      if (!m) return null;
+      const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+      if (!isFinite(lat) || !isFinite(lon) || lat < 46.6 || lat > 47.2 || lon < 17.1 || lon > 18.3) return null;
+      return { lat, lon };
+    }
+
+    function fmtCoordPair(lat, lon) {
+      return Number(lat).toFixed(5) + ',' + Number(lon).toFixed(5);
+    }
+
+    function compactIso(ms) {
+      return new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+
+    function startLabelForShare() {
+      const key = document.getElementById('startSelect').value;
+      if (key && presets[key]) return presets[key].name;
+      if (currentPos) return currentPos.lat.toFixed(5) + ', ' + currentPos.lon.toFixed(5);
+      return '';
+    }
+
+    function buildShareQuery(opts) {
+      const o = opts || {};
+      const params = new URLSearchParams();
+      const boat = o.boat || document.getElementById('boat').value;
+      if (boat && polars[boat]) params.set('boat', boat);
+
+      const startKey = o.fromKey != null ? o.fromKey : document.getElementById('startSelect').value;
+      const startPos = o.fromPos || currentPos;
+      if (startKey && presets[startKey] && startPos
+          && Math.abs(startPos.lat - presets[startKey].lat) < 1e-5
+          && Math.abs(startPos.lon - presets[startKey].lon) < 1e-5) {
+        params.set('from', startKey);
+      } else if (startPos && isFinite(startPos.lat) && isFinite(startPos.lon)) {
+        params.set('from', fmtCoordPair(startPos.lat, startPos.lon));
+      }
+
+      const toKey = o.toKey != null ? o.toKey : document.getElementById('targetSelect').value;
+      const target = o.target || (typeof getTarget === 'function' ? getTarget() : null);
+      if (toKey && toKey !== 'manual' && presets[toKey]) {
+        params.set('to', toKey);
+      } else if (target) {
+        params.set('to', fmtCoordPair(target.lat, target.lon));
+      }
+
+      const tms = o.tms != null ? o.tms : getRouteStartMs();
+      if (isFinite(tms)) params.set('t', compactIso(tms));
+
+      const mix = o.mix != null ? o.mix : getBlendHours();
+      if (isFinite(mix)) params.set('mix', Number(mix).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1'));
+
+      const modelIds = o.models || selectedModelInputs().map(inp => inp.value);
+      const aliases = [];
+      for (let i = 0; i < modelIds.length; i++) {
+        const id = modelIds[i];
+        if (MODEL_ALIAS[id]) aliases.push(MODEL_ALIAS[id]);
+        else if (MODEL_DAYS[id]) aliases.push(id);
+      }
+      if (aliases.length) params.set('m', aliases.join(','));
+      else params.set('m', 'none');
+
+      const nc = o.nc != null ? !!o.nc : !!(document.getElementById('useNowcast') && document.getElementById('useNowcast').checked);
+      params.set('nc', nc ? '1' : '0');
+
+      const parts = [];
+      params.forEach(function (v, k) {
+        const ev = encodeURIComponent(v).replace(/%2C/gi, ',').replace(/%3A/gi, ':');
+        parts.push(k + '=' + ev);
+      });
+      return parts.join('&');
+    }
+
+    function shareUrlFromQuery(qs) {
+      const u = new URL(location.href);
+      const path = u.origin + u.pathname;
+      return qs ? path + '?' + qs : path;
+    }
+
+    function captureShareState() {
+      const target = getTarget();
+      lastShareQuery = buildShareQuery({
+        boat: document.getElementById('boat').value,
+        fromKey: document.getElementById('startSelect').value,
+        fromPos: currentPos,
+        toKey: document.getElementById('targetSelect').value,
+        target: target,
+        tms: window._routeStartMs || getRouteStartMs(),
+        mix: window._blendHours != null ? window._blendHours : getBlendHours(),
+        models: selectedModelInputs().map(inp => inp.value),
+        nc: window._allowObs && document.getElementById('useNowcast') && document.getElementById('useNowcast').checked
+      });
+      const fromName = startLabelForShare();
+      const toName = target ? target.name : '';
+      lastShareText = (fromName && toName) ? (fromName + ' → ' + toName) : 'Balaton Routing útvonal';
+    }
+
+    function showShareButton() {
+      const row = document.getElementById('shareRow');
+      if (row) row.hidden = false;
+    }
+
+    function showShareNotice(past) {
+      const el = document.getElementById('shareNotice');
+      if (!el) return;
+      el.classList.toggle('past', !!past);
+      el.textContent = past
+        ? 'Megosztott útvonal: a beállítások betöltődtek, de az indulási idő már elmúlt. Az előrejelzés azóta változhatott — módosítsd az indulást, vagy számold ki újra.'
+        : 'Megosztott útvonal: a beállítások betöltődtek. Az előrejelzés azóta változhatott — nyomd meg a Számold ki gombot (Isochrone útvonal).';
+      el.hidden = false;
+    }
+
+    function showShareToast(msg) {
+      const el = document.getElementById('shareToast');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.add('show');
+      if (shareToastTimer) clearTimeout(shareToastTimer);
+      shareToastTimer = setTimeout(function () {
+        el.classList.remove('show');
+      }, 2200);
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (!ok) throw new Error('copy failed');
+    }
+
+    function canNativeShare() {
+      return typeof navigator.share === 'function'
+        && (window.matchMedia('(pointer: coarse)').matches
+          || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || ''));
+    }
+
+    async function onShareRoute() {
+      if (!lastShareQuery) return;
+      const url = shareUrlFromQuery(lastShareQuery);
+      try {
+        if (canNativeShare()) {
+          try {
+            await navigator.share({
+              title: 'Balaton Routing',
+              text: lastShareText || 'Balaton Routing útvonal',
+              url: url
+            });
+            return;
+          } catch (e) {
+            if (e && e.name === 'AbortError') return;
+          }
+        }
+        await copyText(url);
+        showShareToast('Link másolva');
+      } catch (e) {
+        tell('A linket nem sikerült másolni. Másold ki innen:\n' + url);
+      }
+    }
+
+    function applyShareParams() {
+      const q = new URLSearchParams(location.search);
+      if (!SHARE_KEYS.some(function (k) { return q.has(k); })) return;
+      let applied = false;
+      let past = false;
+
+      const boat = q.get('boat');
+      if (boat && polars[boat]) {
+        document.getElementById('boat').value = boat;
+        applied = true;
+      }
+
+      const from = q.get('from');
+      if (from) {
+        if (presets[from]) {
+          document.getElementById('startSelect').value = from;
+          applyStartPosition();
+          applied = true;
+        } else {
+          const c = parseLatLonParam(from);
+          if (c) {
+            document.getElementById('startSelect').value = '';
+            currentPos = { lat: c.lat, lon: c.lon };
+            updatePositionMarker();
+            document.getElementById('locStatus').textContent = c.lat.toFixed(5) + ', ' + c.lon.toFixed(5);
+            applied = true;
+          }
+        }
+      }
+
+      const to = q.get('to');
+      if (to) {
+        if (to !== 'manual' && presets[to]) {
+          document.getElementById('targetSelect').value = to;
+          onTargetChange();
+          applied = true;
+        } else {
+          const c = parseLatLonParam(to);
+          if (c) {
+            document.getElementById('targetSelect').value = 'manual';
+            document.getElementById('manualLat').value = String(c.lat);
+            document.getElementById('manualLon').value = String(c.lon);
+            onTargetChange();
+            applied = true;
+          }
+        }
+      }
+
+      const m = q.get('m');
+      if (m != null && String(m).trim() !== '') {
+        if (String(m).trim() === 'none') {
+          document.querySelectorAll('input[name="fcModel"]').forEach(function (inp) {
+            inp.checked = false;
+          });
+          applied = true;
+        } else {
+          const wanted = {};
+          String(m).split(',').forEach(function (raw) {
+            const s = raw.trim();
+            if (!s) return;
+            const id = MODEL_BY_ALIAS[s] || s;
+            if (MODEL_DAYS[id]) wanted[id] = true;
+          });
+          const ids = Object.keys(wanted);
+          if (ids.length) {
+            document.querySelectorAll('input[name="fcModel"]').forEach(function (inp) {
+              inp.checked = !!wanted[inp.value];
+            });
+            applied = true;
+          }
+        }
+      }
+
+      const mixRaw = q.get('mix');
+      if (mixRaw != null && mixRaw !== '') {
+        const mix = parseFloat(mixRaw);
+        if (isFinite(mix) && mix >= 0 && mix <= 2) {
+          const snapped = Math.round(mix * 4) / 4;
+          document.getElementById('blendHours').value = String(snapped);
+          document.getElementById('blendVal').textContent = snapped.toFixed(2);
+          applied = true;
+        }
+      }
+
+      const t = q.get('t');
+      if (t) {
+        const ms = Date.parse(t);
+        if (isFinite(ms)) {
+          document.getElementById('departNow').checked = false;
+          document.getElementById('departAt').value = localDateTimeValue(new Date(ms));
+          onDepartChange();
+          if (ms < Date.now() - 120000) past = true;
+          applied = true;
+        }
+      }
+
+      const nc = q.get('nc');
+      if (nc === '1' || nc === '0') {
+        const el = document.getElementById('useNowcast');
+        if (el && !el.disabled) {
+          el.checked = nc === '1';
+          applied = true;
+        }
+      }
+
+      if (applied) showShareNotice(past);
+    }
+
+    function initShareUI() {
+      const btn = document.getElementById('shareRouteBtn');
+      if (btn) btn.addEventListener('click', onShareRoute);
+    }
+
+
     initMap();
     initDonateUI();
+    initShareUI();
     document.getElementById('departAt').value = localDateTimeValue(new Date());
+    applyShareParams();
   </script>
+  <div id="shareToast" role="status" aria-live="polite"></div>
   <!-- Cloudflare Web Analytics -->
   <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "4441cfd4d44c40bd8c417b41e892a06d"}'></script>
   <!-- End Cloudflare Web Analytics -->
