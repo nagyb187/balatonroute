@@ -562,8 +562,11 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       return pointInPolygon(lat, lon, balatonPolygon);
     }
 
-    function segmentOnWater(a, b, samples) {
-      const n = samples || 10;
+    // spacingKm: ha megadva, legalább ilyen sűrűn mintavételezünk (hosszú szakasz se vághasson át
+    // partszögleten, pl. Tihanyrévnél, ahol a rögzített 4-8 minta 200-500 m-enként mintázott).
+    function segmentOnWater(a, b, samples, spacingKm) {
+      let n = samples || 10;
+      if (spacingKm) n = Math.max(n, Math.ceil(haversineKm(a.lat, a.lon, b.lat, b.lon) / spacingKm));
       for (let i = 0; i <= n; i++) {
         const t = i / n;
         const lat = a.lat + (b.lat - a.lat) * t;
@@ -1286,7 +1289,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           const a = { lat: out[i][0], lon: out[i][1] };
           const c = { lat: out[i+2][0], lon: out[i+2][1] };
           const d = haversineKm(a.lat, a.lon, c.lat, c.lon);
-          if (d < 3.8 && segmentOnWater(a, c, 8) && (!segOk || segOk(out[i], out[i+2]))) {
+          if (d < 3.8 && segmentOnWater(a, c, 8, 0.04) && (!segOk || segOk(out[i], out[i+2]))) {
             out.splice(i + 1, 1);
             cut = true;
             break;
@@ -1319,6 +1322,8 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           const p = frontier[i];
           if (p.t >= maxH) continue;
           if (hit && p.t >= hit.t) continue;
+          // Már felülírt (azóta korábbi idővel elért) cella pontját nem bontjuk ki újra.
+          if (visited.get(cellKey(p.lat, p.lon)) !== p) continue;
           const wind = getWindAt(p.lat, p.lon, now + p.t * 3600000);
           const strait = inStraitZone(p.lat, p.lon);
           // Adaptív lépésköz: gyenge szélben is ki kell lépni a rácscellából (~280 m,
@@ -1362,11 +1367,13 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
             if (!strait && !toGate && angleDiff(act.heading, brgG) > 118) continue;
             const next = destinationPoint(p.lat, p.lon, act.heading, speed * dt * 1.852);
             if (!onWater(next.lat, next.lon)) continue;
-            if (!segmentOnWater(p, next, strait ? 8 : 4)) continue;
+            if (!segmentOnWater(p, next, strait ? 8 : 4, strait ? 0.04 : 0.12)) continue;
             const t = p.t + dt;
             const k = cellKey(next.lat, next.lon);
             const prev = visited.get(k);
-            if (prev && prev.t <= t + 1e-9) continue;
+            // Csak érdemi (>0,6 perc) javulás írja felül a cellát; adaptív lépésköznél a
+            // századperces javulások láncreakciója különben percekig futtatta a keresést.
+            if (prev && prev.t <= t + 0.01) continue;
             const q = { lat: next.lat, lon: next.lon, t, parent: p };
             visited.set(k, q);
             nxt.push(q);
