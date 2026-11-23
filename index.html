@@ -780,37 +780,57 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       return { dir, spd: sumSpd / sumW };
     }
 
-    function getBoatSpeed(polar, windKt, twa) {
+    // Holtszög: ennél kisebb TWA-n a hajó nem halad (0 kt). A beat szög és a holtszög
+    // között a sebesség négyzetesen esik, így a VMG a beat szögnél maximális marad.
+    const NO_GO_TWA = 30;
+
+    function polarWindIdx(polar, windKt) {
       const winds = polar.winds;
       const wMin = winds[0], wMax = winds[winds.length - 1];
-      if (!(windKt > 0)) return { speed: 0, vmg: 0 };
       let scale = 1, w = windKt;
       if (w < wMin) { scale = w / wMin; w = wMin; }
       else if (w > wMax) w = wMax;
-      let w1 = wMin, w2 = wMax;
+      let i1 = 0, i2 = 0;
       for (let i = 0; i < winds.length - 1; i++) {
-        if (w >= winds[i] && w <= winds[i + 1]) { w1 = winds[i]; w2 = winds[i + 1]; break; }
+        if (w >= winds[i] && w <= winds[i + 1]) { i1 = i; i2 = i + 1; break; }
       }
-      if (w <= wMin) w1 = w2 = wMin;
-      if (w >= wMax) w1 = w2 = wMax;
-      const idx1 = winds.indexOf(w1);
-      if (twa <= polar.beatAngles[idx1] + 3) {
-        const ratio = (w2 === w1) ? 0 : (w - w1) / (w2 - w1);
-        const vmg = scale * (polar.beatVMG[idx1] + ratio * (polar.beatVMG[winds.indexOf(w2)] - polar.beatVMG[idx1]));
-        return { speed: vmg / Math.cos(Math.min(twa, 80) * Math.PI / 180), vmg };
-      }
+      if (w <= wMin) i1 = i2 = 0;
+      if (w >= wMax) i1 = i2 = winds.length - 1;
+      const rW = (i2 === i1) ? 0 : (w - winds[i1]) / (winds[i2] - winds[i1]);
+      return { i1, i2, rW, scale };
+    }
+
+    function getBoatSpeed(polar, windKt, twa) {
+      if (!(windKt > 0)) return { speed: 0, vmg: 0 };
+      twa = Math.abs(twa);
+      const W = polarWindIdx(polar, windKt);
+      const lerpW = arr => W.scale * (arr[W.i1] + W.rW * (arr[W.i2] - arr[W.i1]));
+      const beat = beatAngleAt(polar, windKt);
+      const beatVmg = lerpW(polar.beatVMG);
+      const beatSpd = beatVmg / Math.cos(beat * Math.PI / 180);
       const angles = polar.angles;
-      let a1 = angles[0], a2 = angles[angles.length - 1];
-      for (let i = 0; i < angles.length - 1; i++) {
-        if (twa >= angles[i] && twa <= angles[i + 1]) { a1 = angles[i]; a2 = angles[i + 1]; break; }
+      const spAt = idx => W.scale * (polar.speeds[polar.winds[W.i1]][idx] +
+        W.rW * (polar.speeds[polar.winds[W.i2]][idx] - polar.speeds[polar.winds[W.i1]][idx]));
+      let s;
+      if (twa <= NO_GO_TWA) {
+        s = 0;
+      } else if (twa < beat) {
+        const f = (twa - NO_GO_TWA) / (beat - NO_GO_TWA);
+        s = beatSpd * f * f;
+      } else if (twa < angles[0]) {
+        const r = (twa - beat) / (angles[0] - beat);
+        s = beatSpd + r * (spAt(0) - beatSpd);
+      } else if (twa >= angles[angles.length - 1]) {
+        // a táblázat utolsó szöge után (hátszél felé) lineáris extrapoláció az utolsó két pontból
+        const n = angles.length - 1;
+        const r = (twa - angles[n]) / (angles[n] - angles[n - 1]);
+        s = Math.max(0, spAt(n) + r * (spAt(n) - spAt(n - 1)));
+      } else {
+        let k = 0;
+        while (k < angles.length - 2 && twa > angles[k + 1]) k++;
+        const rA = (twa - angles[k]) / (angles[k + 1] - angles[k]);
+        s = spAt(k) + rA * (spAt(k + 1) - spAt(k));
       }
-      function sp(ww, a) { return polar.speeds[ww][angles.indexOf(a)]; }
-      const rW = (w2 === w1) ? 0 : (w - w1) / (w2 - w1);
-      const rA = (a2 === a1) ? 0 : (twa - a1) / (a2 - a1);
-      const s = scale * (
-        (sp(w1, a1) + rA * (sp(w1, a2) - sp(w1, a1))) +
-        rW * ((sp(w2, a1) + rA * (sp(w2, a2) - sp(w2, a1))) - (sp(w1, a1) + rA * (sp(w1, a2) - sp(w1, a1))))
-      );
       return { speed: s, vmg: s * Math.cos(twa * Math.PI / 180) };
     }
 
@@ -1144,7 +1164,9 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       }
     }
 
-    function smoothPath(path) {
+    // segOk(a, c, i): opcionális ellenőrzés, hogy az a→c egyenes szakasz vitorlázható-e
+    // (pl. nem a holtszögbe mutat). Enélkül a simítás kivágná a cikcakk-krajcolást.
+    function smoothPath(path, segOk) {
       const out = path.slice();
       let guard = 0;
       while (guard++ < 400) {
@@ -1153,7 +1175,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           const a = { lat: out[i][0], lon: out[i][1] };
           const c = { lat: out[i+2][0], lon: out[i+2][1] };
           const d = haversineKm(a.lat, a.lon, c.lat, c.lon);
-          if (d < 3.8 && segmentOnWater(a, c, 8)) {
+          if (d < 3.8 && segmentOnWater(a, c, 8) && (!segOk || segOk(out[i], out[i+2]))) {
             out.splice(i + 1, 1);
             cut = true;
             break;
@@ -1167,8 +1189,12 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
     function isochroneRoute(start, goal, polar, drawIso) {
       const now = window._routeStartMs || Date.now();
       const dtH = 6 / 60;
-      const maxH = 11;
-      const maxSteps = Math.round(maxH / dtH);
+      // Időhorizont: max 36 óra, de nem tovább, mint ameddig az előrejelzés tart
+      // (azon túl a getWindAt kitalált 225°/6 kt szelet adna).
+      let maxH = 36;
+      const fcUntil = activeForecast ? forecastUntil(activeForecast) : null;
+      if (fcUntil) maxH = Math.max(1, Math.min(maxH, (fcUntil - now) / 3600000));
+      const maxSteps = 2000;
       const visited = new Map();
       const startNode = { lat: start.lat, lon: start.lon, t: 0, parent: null };
       visited.set(cellKey(start.lat, start.lon), startNode);
@@ -1176,13 +1202,20 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       let hit = null;
       const cross = needsTihanyCrossing(start, goal);
 
-      for (let step = 0; step < maxSteps && !hit; step++) {
+      for (let step = 0; step < maxSteps; step++) {
         const nxt = [];
         for (let i = 0; i < frontier.length; i++) {
           const p = frontier[i];
+          if (p.t >= maxH) continue;
+          if (hit && p.t >= hit.t) continue;
           const wind = getWindAt(p.lat, p.lon, now + p.t * 3600000);
           const strait = inStraitZone(p.lat, p.lon);
-          const dt = strait ? dtH * 0.4 : dtH;
+          // Adaptív lépésköz: gyenge szélben is ki kell lépni a rácscellából (~280 m,
+          // szorosban ~95 m), különben a cella-deduplikáció elnyeli az új pontot és a front elhal.
+          const vRef = Math.max(getBoatSpeed(polar, wind.spd, 90).speed, 0.55);
+          const minKm = strait ? 0.16 : 0.45;
+          const dt = Math.min(strait ? 0.2 : 0.5, Math.max(strait ? dtH * 0.4 : dtH, minKm / (vRef * 1.852)));
+          const beatNow = beatAngleAt(polar, wind.spd);
           const acts = polarActions(polar, wind);
           const brgG = calcBearing(p.lat, p.lon, goal.lat, goal.lon);
           acts.push({ twa: angleDiff(brgG, wind.dir), heading: brgG });
@@ -1208,7 +1241,11 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           }
           for (let a = 0; a < acts.length; a++) {
             const act = acts[a];
-            const speed = Math.max(getBoatSpeed(polar, wind.spd, act.twa).speed, 0.55);
+            // Holtszögben nincs minimum-sebesség (régen 0,55 kt-tal bármerre haladhatott);
+            // a holtszögön kívül szélcsendben 0,55 kt sodródás/evezés marad.
+            let speed = getBoatSpeed(polar, wind.spd, act.twa).speed;
+            if (act.twa >= beatNow) speed = Math.max(speed, 0.55);
+            if (speed < 0.05) continue;
             const vmgG = speed * Math.cos(angleDiff(act.heading, brgG) * Math.PI / 180);
             const toGate = cross && p.lat > 46.906;
             if (!strait && !toGate && angleDiff(act.heading, brgG) > 118) continue;
@@ -1229,6 +1266,11 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         }
         if (!nxt.length) break;
         frontier = nxt;
+        if (hit) {
+          let minT = Infinity;
+          for (let i = 0; i < frontier.length; i++) if (frontier[i].t < minT) minT = frontier[i].t;
+          if (minT >= hit.t) break;
+        }
       }
 
       let reached = !!hit;
@@ -1236,9 +1278,14 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         const lastDt = haversineNM(hit.lat, hit.lon, goal.lat, goal.lon);
         const wind = getWindAt(hit.lat, hit.lon, now + hit.t * 3600000);
         const brg = calcBearing(hit.lat, hit.lon, goal.lat, goal.lon);
-        const spd = Math.max(getBoatSpeed(polar, wind.spd, angleDiff(brg, wind.dir)).speed, 0.6);
+        // Utolsó (<0,35 NM) szakasz: holtszögben krajcolással (beat VMG) számolunk, nem egyenes sebességgel.
+        const twaL = angleDiff(brg, wind.dir), beatL = beatAngleAt(polar, wind.spd);
+        const spdL = twaL >= beatL ? getBoatSpeed(polar, wind.spd, twaL).speed
+          : getBoatSpeed(polar, wind.spd, beatL).vmg / Math.max(0.2, Math.cos(twaL * Math.PI / 180));
+        const spd = Math.max(spdL, 0.6);
         hit = { lat: goal.lat, lon: goal.lon, t: hit.t + lastDt / spd, parent: hit };
       } else {
+        // Nem ért be a horizonton belül: a célhoz legközelebbi pontig adjuk vissza (részleges útvonal).
         let best = null, bestD = 1e9;
         visited.forEach(q => {
           const d = haversineNM(q.lat, q.lon, goal.lat, goal.lon);
@@ -1246,26 +1293,38 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         });
         hit = best;
       }
+      const distLeftNM = (!reached && hit) ? haversineNM(hit.lat, hit.lon, goal.lat, goal.lon) : 0;
 
       if (drawIso) drawIsochrones(visited, start, goal, hit ? hit.t : 8);
 
       const raw = [];
+      const rawT = new Map();
       let p = hit, guard = 0;
-      while (p && guard++ < 500) {
-        raw.push([p.lat, p.lon]);
+      while (p && guard++ < 5000) {
+        const pt = [p.lat, p.lon];
+        rawT.set(pt, p.t);
+        raw.push(pt);
         p = p.parent;
       }
       raw.reverse();
       if (reached && (raw.length === 0 || haversineNM(raw[raw.length-1][0], raw[raw.length-1][1], goal.lat, goal.lon) > 0.05)) {
         raw.push([goal.lat, goal.lon]);
       }
-      const path = smoothPath(raw);
+      // Csak akkor egyenesítünk, ha az új szakasz a beat szögnél nem élesebb.
+      const segOk = (a, c) => {
+        const ta = rawT.has(a) ? rawT.get(a) : 0;
+        const w = getWindAt(a[0], a[1], now + ta * 3600000);
+        if (!(w.spd > 0)) return true;
+        return angleDiff(calcBearing(a[0], a[1], c[0], c[1]), w.dir) >= beatAngleAt(polar, w.spd) - 1;
+      };
+      const path = smoothPath(raw, segOk);
       let totalNM = 0;
       for (let i = 1; i < path.length; i++) {
         totalNM += haversineNM(path[i-1][0], path[i-1][1], path[i][0], path[i][1]);
       }
       return {
         path, totalNM, totalTime: hit ? hit.t : 0, ok: reached,
+        partial: !reached, distLeftNM, horizonH: maxH,
         nodes: visited.size, isos: Math.max(1, Math.round((hit ? hit.t : 0) * 2))
       };
     }
@@ -1313,7 +1372,9 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
             if (vmg < -0.2 && !fine) return;
             if (!best || vmg > best.vmg) best = { speed, next: testPos, vmg };
           }
-          const spd0 = Math.max(getBoatSpeed(polar, wind.spd, angleDiff(bearing, wind.dir)).speed, 1.5);
+          const twa0 = angleDiff(bearing, wind.dir);
+          const spd0raw = getBoatSpeed(polar, wind.spd, twa0).speed;
+          const spd0 = twa0 >= beatAngleAt(polar, wind.spd) ? Math.max(spd0raw, 1.5) : spd0raw;
           const offs = fine ? [0, 8, -8, 16, -16, 28, -28] : [0, 10, -10];
           for (let o = 0; o < offs.length; o++) consider((bearing + offs[o] + 360) % 360, spd0, 1);
           if (!fine) {
@@ -1621,6 +1682,8 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           t: res.totalTime,
           eta: h + ' ó ' + m + ' p',
           ok: res.ok,
+          distLeftNM: res.distLeftNM || 0,
+          horizonH: res.horizonH || 0,
           ms,
           timed: timeAlongPath(res.path, res.totalTime),
           wind: w0,
@@ -1638,7 +1701,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       routeLines.forEach(l => l.getLatLngs().forEach(p => allPts.push(p)));
       if (allPts.length) map.fitBounds(allPts, { padding: [40, 40] });
 
-      rows.sort((a, b) => a.t - b.t);
+      rows.sort((a, b) => (b.ok - a.ok) || (a.t - b.t));
       const best = rows[0];
       const startLabel = new Date(window._routeStartMs).toLocaleString('hu-HU');
       const clampedRows = rows.filter(r => r.clamped);
@@ -1659,7 +1722,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
               <td>${r.until ? ('→ ' + fmtShort(r.until)) : 'met.hu most'}</td>
               <td>${r.eta}</td>
               <td>${r.nm.toFixed(1)} NM</td>
-              <td>${r.ok ? 'igen' : 'nem ért be'}</td>
+              <td>${r.ok ? 'igen' : ('nem ért be' + (r.distLeftNM ? ' (még ' + r.distLeftNM.toFixed(1) + ' NM, ' + Math.round(r.horizonH) + ' ó után)' : ''))}</td>
             </tr>`).join('')}
           </tbody>
         </table>
