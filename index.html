@@ -151,7 +151,7 @@
       border-color: #854d0e;
       color: #fbbf24;
     }
-    #shareRow { margin-top: 10px; }
+    #shareRow { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     #shareRow[hidden] { display: none !important; }
     button.btn-share {
       width: auto;
@@ -161,6 +161,8 @@
       color: #e2e8f0;
       font-size: 0.88rem;
     }
+    #recalcBtn[hidden] { display: none !important; }
+    #recalcBtn { margin-top: 8px; }
     button.btn-share:hover { background: #475569; }
     button.btn-share:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
     #shareToast {
@@ -305,10 +307,12 @@
     </div>
     <div class="card">
       <div id="shareNotice" hidden></div>
+      <button type="button" class="btn-primary" id="recalcBtn" hidden>Számold újra friss széllel</button>
       <button class="btn-primary" onclick="planFullRoute()">Isochrone útvonal (összes kijelölt)</button>
       <div id="result" style="display:none;" class="result"></div>
       <div id="shareRow" hidden>
         <button type="button" class="btn-share" id="shareRouteBtn">Megosztás</button>
+        <button type="button" class="btn-share" id="gpxDownloadBtn">GPX letöltése</button>
       </div>
       <div id="donateBar" class="donate-bar" hidden>
         <span class="donate-bar-text">Hasznos volt? Egy kávéval támogathatod 🙏</span>
@@ -1440,6 +1444,16 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         mk.bindTooltip(r.label + (arrived ? ' • cél' : ''), { permanent: false });
         playheadMarkers.push(mk);
         activeForecast = r.fc || null;
+        const hasWindData = !!(r.fc || (typeof allStations === 'object' && Object.keys(allStations).length > 0));
+        if (!hasWindData) {
+          bits.push('<tr>' +
+            '<td><span class="swatch" style="background:' + r.color + '"></span>' + r.label +
+              (arrived ? ' <span style="opacity:0.7">cél</span>' : '') + '</td>' +
+            '<td class="num">' + p.lat.toFixed(4) + ', ' + p.lon.toFixed(4) + '</td>' +
+            '<td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td>' +
+          '</tr>');
+          continue;
+        }
         const wind = getWindAt(p.lat, p.lon, startMs + T * 3600000);
         const hdg = headingAtTime(r.timed, T);
         const twa = angleDiff(hdg, wind.spd != null ? wind.dir : 0);
@@ -1651,7 +1665,11 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         ${clampedRows.length ? ('<div class="warn">Sárga: az indulás (' + startLabel + ') kívül esik a modellből. ' + clampedRows.map(r => r.label + ' csak ' + fmtShort(r.until) + '-ig tart').join('; ') + '.</div>') : ''}
       `;
       setupScrub(rows);
-      captureShareState();
+      const noticeEl = document.getElementById('shareNotice');
+      if (noticeEl) noticeEl.hidden = true;
+      const recalcEl = document.getElementById('recalcBtn');
+      if (recalcEl) recalcEl.hidden = true;
+      await captureShareState(best);
       showShareButton();
       showDonateBar();
     }
@@ -1708,7 +1726,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
     }
 
 
-    const SHARE_KEYS = ['from', 'to', 'boat', 't', 'mix', 'm', 'nc'];
+    const SHARE_KEYS = ['from', 'to', 'boat', 't', 'mix', 'm', 'nc', 'r'];
     const MODEL_ALIAS = {
       icon_d2: 'd2',
       icon_eu: 'eu',
@@ -1723,8 +1741,12 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       arome: 'geosphere_seamless',
       gfs: 'gfs_seamless'
     };
+    const SHARE_GRID_M = 5;
+    const SHARE_R_MAX = 1700;
+    const M_PER_DEG_LAT = 110540;
     let lastShareQuery = null;
     let lastShareText = '';
+    let lastSnapshot = null;
     let shareToastTimer = null;
 
     function parseLatLonParam(s) {
@@ -1794,6 +1816,8 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       const nc = o.nc != null ? !!o.nc : !!(document.getElementById('useNowcast') && document.getElementById('useNowcast').checked);
       params.set('nc', nc ? '1' : '0');
 
+      if (o.r) params.set('r', o.r);
+
       const parts = [];
       params.forEach(function (v, k) {
         const ev = encodeURIComponent(v).replace(/%2C/gi, ',').replace(/%3A/gi, ':');
@@ -1808,9 +1832,225 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       return qs ? path + '?' + qs : path;
     }
 
-    function captureShareState() {
+    function ByteWriter() { this.b = []; }
+    ByteWriter.prototype.u8 = function (n) { this.b.push(n & 255); };
+    ByteWriter.prototype.u16 = function (n) {
+      n = n & 65535;
+      this.b.push(n & 255, (n >> 8) & 255);
+    };
+    ByteWriter.prototype.u32 = function (n) {
+      n = n >>> 0;
+      this.b.push(n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255);
+    };
+    ByteWriter.prototype.i32 = function (n) { this.u32(n | 0); };
+    ByteWriter.prototype.varint = function (n) {
+      n = n >>> 0;
+      while (n >= 0x80) { this.b.push((n & 0x7f) | 0x80); n >>>= 7; }
+      this.b.push(n);
+    };
+    ByteWriter.prototype.str = function (s) {
+      const u = new TextEncoder().encode(String(s == null ? '' : s).slice(0, 80));
+      this.u8(u.length);
+      for (let i = 0; i < u.length; i++) this.b.push(u[i]);
+    };
+    ByteWriter.prototype.bytes = function () { return new Uint8Array(this.b); };
+
+    function ByteReader(u8) {
+      this.b = u8;
+      this.i = 0;
+    }
+    ByteReader.prototype.u8 = function () {
+      if (this.i >= this.b.length) throw new Error('short');
+      return this.b[this.i++];
+    };
+    ByteReader.prototype.u16 = function () { return this.u8() | (this.u8() << 8); };
+    ByteReader.prototype.u32 = function () {
+      return (this.u8() | (this.u8() << 8) | (this.u8() << 16) | (this.u8() * 0x1000000)) >>> 0;
+    };
+    ByteReader.prototype.i32 = function () { return this.u32() | 0; };
+    ByteReader.prototype.varint = function () {
+      let n = 0, shift = 0, x;
+      do {
+        x = this.u8();
+        n += (x & 0x7f) * Math.pow(2, shift);
+        shift += 7;
+        if (shift > 35) throw new Error('varint');
+      } while (x & 0x80);
+      return n >>> 0;
+    };
+    ByteReader.prototype.str = function () {
+      const n = this.u8();
+      if (this.i + n > this.b.length) throw new Error('short str');
+      const s = new TextDecoder().decode(this.b.subarray(this.i, this.i + n));
+      this.i += n;
+      return s;
+    };
+
+    function zig(n) { n = n | 0; return ((n << 1) ^ (n >> 31)) >>> 0; }
+    function unzig(n) { n = n >>> 0; return (n >>> 1) ^ -(n & 1); }
+
+    function base64urlEncode(u8) {
+      let bin = '';
+      for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+    function base64urlDecode(s) {
+      s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+      const pad = s.length % 4;
+      if (pad) s += '===='.slice(pad);
+      const bin = atob(s);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      return u8;
+    }
+
+    async function deflateBytes(u8) {
+      if (typeof CompressionStream !== 'function') return null;
+      try {
+        const stream = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      } catch (e) {
+        return null;
+      }
+    }
+    async function inflateBytes(u8) {
+      if (typeof DecompressionStream !== 'function') throw new Error('inflate');
+      const stream = new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate'));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+
+    function distPointToSegM(p, a, b) {
+      return distToSegKm(p[0], p[1], { lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }) * 1000;
+    }
+
+    function douglasPeucker(points, epsilonM) {
+      if (!points || points.length <= 2) return points ? points.slice() : [];
+      let maxD = -1, idx = -1;
+      const a = points[0], b = points[points.length - 1];
+      for (let i = 1; i < points.length - 1; i++) {
+        const d = distPointToSegM(points[i], a, b);
+        if (d > maxD) { maxD = d; idx = i; }
+      }
+      if (maxD > epsilonM && idx >= 0) {
+        const left = douglasPeucker(points.slice(0, idx + 1), epsilonM);
+        const right = douglasPeucker(points.slice(idx), epsilonM);
+        return left.slice(0, -1).concat(right);
+      }
+      return [a, b];
+    }
+
+    function packRouteBytes(path, meta) {
+      const m = meta || {};
+      const w = new ByteWriter();
+      w.u8(0x01);
+      let flags = 0;
+      if (m.ok) flags |= 1;
+      if (m.label) flags |= 2;
+      if (m.run) flags |= 4;
+      w.u8(flags);
+      const durMin = Math.max(0, Math.min(65535, Math.round((m.durationH || 0) * 60)));
+      const nmCents = Math.max(0, Math.min(65535, Math.round((m.nm || 0) * 100)));
+      w.u16(durMin);
+      w.u16(nmCents);
+      w.u32(Math.max(0, Math.floor((m.computedAt || Date.now()) / 1000)));
+      if (flags & 2) w.str(m.label);
+      if (flags & 4) w.str(m.run);
+      const n = path.length;
+      w.u16(n);
+      const lat0 = path[0][0], lon0 = path[0][1];
+      w.i32(Math.round(lat0 * 1e6));
+      w.i32(Math.round(lon0 * 1e6));
+      const mPerDegLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+      let px = 0, py = 0;
+      for (let i = 1; i < n; i++) {
+        const y = Math.round((path[i][0] - lat0) * M_PER_DEG_LAT / SHARE_GRID_M);
+        const x = Math.round((path[i][1] - lon0) * mPerDegLon / SHARE_GRID_M);
+        w.varint(zig(x - px));
+        w.varint(zig(y - py));
+        px = x; py = y;
+      }
+      return w.bytes();
+    }
+
+    async function encodeRoutePayload(path, meta) {
+      if (!path || path.length < 2) return null;
+      let pts = path;
+      let eps = SHARE_GRID_M;
+      let best = null;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const raw = packRouteBytes(pts, meta);
+        const z = await deflateBytes(raw);
+        let packed = raw;
+        let wrapped = false;
+        if (z && z.length + 1 < raw.length) {
+          packed = new Uint8Array(1 + z.length);
+          packed[0] = 0x11;
+          packed.set(z, 1);
+          wrapped = true;
+        }
+        const token = base64urlEncode(packed);
+        if (!best || token.length < best.length) best = token;
+        if (token.length <= SHARE_R_MAX || pts.length <= 3 || eps > 120) return token;
+        eps = Math.round(eps * 1.6);
+        pts = douglasPeucker(path, eps);
+      }
+      return best;
+    }
+
+    async function decodeRoutePayload(token) {
+      if (!token) return null;
+      let bytes = base64urlDecode(token);
+      if (!bytes.length) return null;
+      if (bytes[0] === 0x11) bytes = await inflateBytes(bytes.subarray(1));
+      const r = new ByteReader(bytes);
+      const ver = r.u8();
+      if (ver !== 0x01) throw new Error('ver');
+      const flags = r.u8();
+      const durationH = r.u16() / 60;
+      const nm = r.u16() / 100;
+      const computedAt = r.u32() * 1000;
+      const label = (flags & 2) ? r.str() : '';
+      const run = (flags & 4) ? r.str() : '';
+      const n = r.u16();
+      if (n < 2 || n > 8000) throw new Error('n');
+      const lat0 = r.i32() / 1e6;
+      const lon0 = r.i32() / 1e6;
+      const mPerDegLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+      const path = [[lat0, lon0]];
+      let px = 0, py = 0;
+      for (let i = 1; i < n; i++) {
+        px += unzig(r.varint());
+        py += unzig(r.varint());
+        path.push([
+          lat0 + py * SHARE_GRID_M / M_PER_DEG_LAT,
+          lon0 + px * SHARE_GRID_M / mPerDegLon
+        ]);
+      }
+      const timed = timeAlongPath(path, durationH);
+      const h = Math.floor(durationH);
+      const min = Math.round((durationH - h) * 60);
+      return {
+        path, timed, nm, t: durationH, durationH,
+        eta: h + ' ó ' + min + ' p',
+        ok: !!(flags & 1),
+        label: label || 'Megosztott útvonal',
+        run, computedAt,
+        color: '#3b82f6'
+      };
+    }
+
+    function routeColorForLabel(label) {
+      const boxes = document.querySelectorAll('input[name="fcModel"]');
+      for (let i = 0; i < boxes.length; i++) {
+        if ((boxes[i].dataset.label || '') === label) return boxes[i].dataset.color || '#3b82f6';
+      }
+      if (/met\.hu/i.test(label || '')) return '#94a3b8';
+      return '#3b82f6';
+    }
+
+    async function captureShareState(best) {
       const target = getTarget();
-      lastShareQuery = buildShareQuery({
+      const settings = {
         boat: document.getElementById('boat').value,
         fromKey: document.getElementById('startSelect').value,
         fromPos: currentPos,
@@ -1820,10 +2060,45 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         mix: window._blendHours != null ? window._blendHours : getBlendHours(),
         models: selectedModelInputs().map(inp => inp.value),
         nc: window._allowObs && document.getElementById('useNowcast') && document.getElementById('useNowcast').checked
-      });
+      };
       const fromName = startLabelForShare();
       const toName = target ? target.name : '';
       lastShareText = (fromName && toName) ? (fromName + ' → ' + toName) : 'Balaton Routing útvonal';
+      if (best && best.label) lastShareText += ' (' + best.label + ')';
+
+      let path = null;
+      if (best && best.timed && best.timed.length >= 2) {
+        path = best.timed.map(function (p) { return [p.lat, p.lon]; });
+      }
+      const computedAt = Date.now();
+      let r = null;
+      if (path) {
+        r = await encodeRoutePayload(path, {
+          ok: !!best.ok,
+          durationH: best.t,
+          nm: best.nm,
+          computedAt: computedAt,
+          label: best.label || '',
+          run: best.run || ''
+        });
+      }
+      lastSnapshot = path ? {
+        path: path,
+        timed: best.timed,
+        nm: best.nm,
+        t: best.t,
+        eta: best.eta,
+        ok: best.ok,
+        label: best.label || '',
+        run: best.run || '',
+        color: best.color || routeColorForLabel(best.label),
+        computedAt: computedAt,
+        fromName: fromName,
+        toName: toName,
+        startMs: settings.tms,
+        distLeftNM: best.distLeftNM || 0
+      } : null;
+      lastShareQuery = buildShareQuery(Object.assign({}, settings, r ? { r: r } : {}));
     }
 
     function showShareButton() {
@@ -1831,14 +2106,94 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       if (row) row.hidden = false;
     }
 
-    function showShareNotice(past) {
+    function showShareNotice(kind, opts) {
       const el = document.getElementById('shareNotice');
       if (!el) return;
-      el.classList.toggle('past', !!past);
-      el.textContent = past
+      const o = opts || {};
+      if (kind === 'snapshot') {
+        const snap = o.snap || lastSnapshot;
+        const when = snap && snap.computedAt
+          ? new Date(snap.computedAt).toLocaleString('hu-HU')
+          : '';
+        const srcParts = [];
+        if (snap && snap.label) srcParts.push(snap.label);
+        if (snap && snap.run) srcParts.push(snap.run);
+        const src = srcParts.join(', ');
+        el.classList.remove('past');
+        el.textContent = 'Megosztott útvonal – számítva: ' + when
+          + (src ? ', ' + src : '') + ' előrejelzéssel.';
+        el.hidden = false;
+        const recalc = document.getElementById('recalcBtn');
+        if (recalc) recalc.hidden = false;
+        return;
+      }
+      el.classList.toggle('past', !!o.past);
+      el.textContent = o.past
         ? 'Megosztott útvonal: a beállítások betöltődtek, de az indulási idő már elmúlt. Az előrejelzés azóta változhatott — módosítsd az indulást, vagy számold ki újra.'
         : 'Megosztott útvonal: a beállítások betöltődtek. Az előrejelzés azóta változhatott — nyomd meg a Számold ki gombot (Isochrone útvonal).';
       el.hidden = false;
+      const recalc = document.getElementById('recalcBtn');
+      if (recalc) recalc.hidden = true;
+    }
+
+    function displaySnapshot(snap) {
+      if (!snap || !snap.path || snap.path.length < 2) return;
+      snap.color = snap.color || routeColorForLabel(snap.label);
+      if (!snap.timed) snap.timed = timeAlongPath(snap.path, snap.durationH || snap.t || 0);
+      lastSnapshot = Object.assign({}, snap, {
+        fromName: snap.fromName || startLabelForShare(),
+        toName: snap.toName || (getTarget() && getTarget().name) || '',
+        startMs: window._routeStartMs || getRouteStartMs()
+      });
+      routeLines.forEach(function (l) { map.removeLayer(l); });
+      routeLines = [];
+      if (typeof isoLayers !== 'undefined') {
+        isoLayers.forEach(function (l) { map.removeLayer(l); });
+        isoLayers = [];
+      }
+      const line = L.polyline(snap.path, { color: snap.color, weight: 5, opacity: 0.92 }).addTo(map);
+      line.bindTooltip(snap.label || 'Megosztott útvonal', { sticky: true });
+      routeLines.push(line);
+      const end = snap.path[snap.path.length - 1];
+      if (targetMarker) map.removeLayer(targetMarker);
+      const tName = lastSnapshot.toName || 'Cél';
+      targetMarker = L.marker([end[0], end[1]]).addTo(map).bindPopup('<b>' + tName + '</b>').openPopup();
+      if (!currentPos) {
+        currentPos = { lat: snap.path[0][0], lon: snap.path[0][1] };
+        updatePositionMarker();
+      } else {
+        updatePositionMarker();
+      }
+      map.fitBounds(line.getBounds(), { padding: [40, 40] });
+
+      const status = document.getElementById('result');
+      status.style.display = 'block';
+      const startLabel = new Date(lastSnapshot.startMs).toLocaleString('hu-HU');
+      const computed = snap.computedAt ? new Date(snap.computedAt).toLocaleString('hu-HU') : '';
+      status.innerHTML =
+        '<strong>' + (lastSnapshot.toName || 'Megosztott útvonal') + '</strong> • mentett útvonal<br>' +
+        'Indulás: ' + startLabel + (computed ? '<br>Számítva: ' + computed : '') + '<br>' +
+        '<div class="legend-row"><span class="legend-item"><span class="swatch" style="background:' + snap.color + '"></span>' +
+        (snap.label || 'Útvonal') + (snap.run ? ' (' + snap.run + ')' : '') + '</span></div>' +
+        '<table class="wind-table"><thead><tr><th>Modell</th><th>ETA</th><th>Táv</th><th>Cél</th></tr></thead><tbody>' +
+        '<tr><td><span class="swatch" style="background:' + snap.color + '"></span>' +
+        (snap.label || 'Útvonal') + (snap.run ? ' (' + snap.run + ')' : '') + '</td>' +
+        '<td>' + (snap.eta || '') + '</td>' +
+        '<td>' + (isFinite(snap.nm) ? snap.nm.toFixed(1) + ' NM' : '—') + '</td>' +
+        '<td>' + (snap.ok ? 'igen' : 'nem ért be') + '</td></tr></tbody></table>' +
+        '<span style="font-size:0.8rem;opacity:0.85;">Ez a megosztáskor kiszámolt útvonal, nem élő számítás.</span>';
+
+      setupScrub([{
+        label: snap.label || 'Megosztott útvonal',
+        color: snap.color,
+        t: snap.t || snap.durationH || 0,
+        timed: snap.timed,
+        run: snap.run || '',
+        fc: null,
+        ok: snap.ok
+      }]);
+      showShareButton();
+      showDonateBar();
     }
 
     function showShareToast(msg) {
@@ -1898,7 +2253,143 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       }
     }
 
-    function applyShareParams() {
+    function xmlEsc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    }
+
+    function headingChangeDeg(a, b, c) {
+      const h1 = calcBearing(a[0], a[1], b[0], b[1]);
+      const h2 = calcBearing(b[0], b[1], c[0], c[1]);
+      return angleDiff(h1, h2);
+    }
+
+    function tackPointsFromPath(path) {
+      const marks = [];
+      if (!path || path.length < 3) return marks;
+      for (let i = 1; i < path.length - 1; i++) {
+        const a = path[i - 1], b = path[i], c = path[i + 1];
+        if (haversineNM(a[0], a[1], b[0], b[1]) < 0.05) continue;
+        if (haversineNM(b[0], b[1], c[0], c[1]) < 0.05) continue;
+        if (headingChangeDeg(a, b, c) >= 40) marks.push({ i: i, lat: b[0], lon: b[1] });
+      }
+      const filtered = [];
+      for (let i = 0; i < marks.length; i++) {
+        const prev = filtered[filtered.length - 1];
+        if (prev && haversineNM(prev.lat, prev.lon, marks[i].lat, marks[i].lon) < 0.15) continue;
+        filtered.push(marks[i]);
+      }
+      return filtered;
+    }
+
+    function slugPart(s) {
+      return String(s || '')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 40) || 'pont';
+    }
+
+    function shareFilenameParts() {
+      const fromKey = document.getElementById('startSelect').value;
+      const toKey = document.getElementById('targetSelect').value;
+      const from = (fromKey && presets[fromKey]) ? fromKey : slugPart(lastSnapshot && lastSnapshot.fromName);
+      let to;
+      if (toKey && toKey !== 'manual' && presets[toKey]) to = toKey;
+      else to = slugPart(lastSnapshot && lastSnapshot.toName);
+      const ms = (lastSnapshot && lastSnapshot.startMs) || window._routeStartMs || Date.now();
+      const d = new Date(ms);
+      const date = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      return { from: from, to: to, date: date };
+    }
+
+    function buildGpx(snap) {
+      const s = snap || lastSnapshot;
+      if (!s || !s.path || s.path.length < 2) return null;
+      const path = s.path;
+      const timed = s.timed || timeAlongPath(path, s.t || s.durationH || 0);
+      const startMs = s.startMs || window._routeStartMs || s.computedAt || Date.now();
+      const fromName = s.fromName || startLabelForShare() || 'Kezdőpont';
+      const toName = s.toName || (getTarget() && getTarget().name) || 'Cél';
+      const metaName = 'Balaton Routing – ' + fromName + ' → ' + toName;
+      const computedIso = compactIso(s.computedAt || Date.now());
+      const tacks = tackPointsFromPath(path);
+      const rtePts = [];
+      rtePts.push({ lat: path[0][0], lon: path[0][1], name: fromName, t: 0 });
+      for (let i = 0; i < tacks.length; i++) {
+        const tp = tacks[i];
+        const tt = (timed[tp.i] && timed[tp.i].t) || 0;
+        rtePts.push({ lat: tp.lat, lon: tp.lon, name: 'Fordulás ' + (i + 1), t: tt });
+      }
+      const last = path[path.length - 1];
+      rtePts.push({ lat: last[0], lon: last[1], name: toName, t: s.t || s.durationH || 0 });
+
+      function isoAt(hours) {
+        return compactIso(startMs + (hours || 0) * 3600000);
+      }
+      function ptXml(tag, pt) {
+        return '    <' + tag + ' lat="' + pt.lat.toFixed(6) + '" lon="' + pt.lon.toFixed(6) + '">\n' +
+          '      <time>' + isoAt(pt.t) + '</time>\n' +
+          (pt.name ? '      <name>' + xmlEsc(pt.name) + '</name>\n' : '') +
+          '    </' + tag + '>';
+      }
+
+      const desc = [s.label, s.run, (isFinite(s.nm) ? s.nm.toFixed(1) + ' NM' : ''), s.eta]
+        .filter(Boolean).join(', ');
+      const lines = [];
+      lines.push('<?xml version="1.0" encoding="UTF-8"?>');
+      lines.push('<gpx version="1.1" creator="Balaton Routing https://balatonrouting.hu/"');
+      lines.push('     xmlns="http://www.topografix.com/GPX/1/1"');
+      lines.push('     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"');
+      lines.push('     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">');
+      lines.push('  <metadata>');
+      lines.push('    <name>' + xmlEsc(metaName) + '</name>');
+      if (desc) lines.push('    <desc>' + xmlEsc(desc) + '</desc>');
+      lines.push('    <time>' + computedIso + '</time>');
+      lines.push('  </metadata>');
+      lines.push('  <rte>');
+      lines.push('    <name>' + xmlEsc(metaName) + '</name>');
+      for (let i = 0; i < rtePts.length; i++) lines.push(ptXml('rtept', rtePts[i]));
+      lines.push('  </rte>');
+      lines.push('  <trk>');
+      lines.push('    <name>' + xmlEsc(metaName) + '</name>');
+      lines.push('    <trkseg>');
+      for (let i = 0; i < timed.length; i++) {
+        lines.push(ptXml('trkpt', { lat: timed[i].lat, lon: timed[i].lon, t: timed[i].t }));
+      }
+      lines.push('    </trkseg>');
+      lines.push('  </trk>');
+      lines.push('</gpx>');
+      lines.push('');
+      return { xml: lines.join('\n'), name: metaName };
+    }
+
+    function downloadGpx() {
+      const built = buildGpx(lastSnapshot);
+      if (!built) {
+        tell('Nincs letölthető útvonal. Előbb számold ki, vagy nyiss meg egy megosztott linket.');
+        return;
+      }
+      const parts = shareFilenameParts();
+      const filename = 'balatonrouting_' + parts.from + '_' + parts.to + '_' + parts.date + '.gpx';
+      const blob = new Blob([built.xml], { type: 'application/gpx+xml;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        URL.revokeObjectURL(a.href);
+        a.remove();
+      }, 1000);
+    }
+
+    async function applyShareParams() {
       const q = new URLSearchParams(location.search);
       if (!SHARE_KEYS.some(function (k) { return q.has(k); })) return;
       let applied = false;
@@ -1989,6 +2480,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           document.getElementById('departNow').checked = false;
           document.getElementById('departAt').value = localDateTimeValue(new Date(ms));
           onDepartChange();
+          window._routeStartMs = ms;
           if (ms < Date.now() - 120000) past = true;
           applied = true;
         }
@@ -2003,12 +2495,40 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         }
       }
 
-      if (applied) showShareNotice(past);
+      const rTok = q.get('r');
+      let snap = null;
+      if (rTok) {
+        try { snap = await decodeRoutePayload(rTok); }
+        catch (e) { snap = null; }
+      }
+      if (snap && snap.path && snap.path.length >= 2) {
+        if (q.get('from') && presets[q.get('from')]) snap.fromName = presets[q.get('from')].name;
+        else if (currentPos) snap.fromName = startLabelForShare();
+        if (q.get('to') && presets[q.get('to')]) snap.toName = presets[q.get('to')].name;
+        else {
+          const tgt = getTarget();
+          if (tgt) snap.toName = tgt.name;
+        }
+        snap.color = routeColorForLabel(snap.label);
+        showShareNotice('snapshot', { snap: snap, past: past });
+        displaySnapshot(snap);
+        lastShareQuery = location.search.replace(/^\?/, '');
+        const tName = snap.toName || '';
+        const fName = snap.fromName || '';
+        lastShareText = (fName && tName) ? (fName + ' → ' + tName) : 'Balaton Routing útvonal';
+        if (snap.label) lastShareText += ' (' + snap.label + ')';
+      } else if (applied) {
+        showShareNotice('settings', { past: past });
+      }
     }
 
     function initShareUI() {
       const btn = document.getElementById('shareRouteBtn');
       if (btn) btn.addEventListener('click', onShareRoute);
+      const gpx = document.getElementById('gpxDownloadBtn');
+      if (gpx) gpx.addEventListener('click', downloadGpx);
+      const recalc = document.getElementById('recalcBtn');
+      if (recalc) recalc.addEventListener('click', function () { planFullRoute(); });
     }
 
 
@@ -2016,7 +2536,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
     initDonateUI();
     initShareUI();
     document.getElementById('departAt').value = localDateTimeValue(new Date());
-    applyShareParams();
+    applyShareParams().catch(function () {});
   </script>
   <div id="shareToast" role="status" aria-live="polite"></div>
   <!-- Cloudflare Web Analytics -->
