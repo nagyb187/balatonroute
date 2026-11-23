@@ -237,13 +237,6 @@
       <label class="chk"><input type="checkbox" id="useNowcast" data-label="met.hu mérés" data-color="#94a3b8" checked> <span class="swatch" style="background:#94a3b8"></span>met.hu mérés (csak azonnali indulásnál)</label>
       <div class="row" style="margin-top:8px;">
         <div>
-          <label>met.hu útvonal számítás</label>
-          <select id="nowcastMethod">
-            <option value="isochrone">Isochrone</option>
-            <option value="vmg">Mohó VMG</option>
-          </select>
-        </div>
-        <div>
           <label>met.hu keverés az előrejelzésbe: <span id="blendVal">2.0</span> óra</label>
           <input type="range" id="blendHours" min="0" max="2" step="0.25" value="2" oninput="document.getElementById('blendVal').textContent = Number(this.value).toFixed(2)">
         </div>
@@ -588,147 +581,6 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
 
     function channelSequence(goingWest) {
       return goingWest ? TIHANY_CHANNEL : TIHANY_CHANNEL.slice().reverse();
-    }
-
-    function nextChannelWp(pos, goingWest) {
-      const seq = channelSequence(goingWest);
-      if (pos.lat > 46.906) {
-        const gate = seq[0];
-        if (haversineKm(pos.lat, pos.lon, gate.lat, gate.lon) > 0.25) return gate;
-      }
-      for (let i = 0; i < seq.length; i++) {
-        if (haversineKm(pos.lat, pos.lon, seq[i].lat, seq[i].lon) > 0.25) return seq[i];
-      }
-      return null;
-    }
-
-    const GLAT = 0.006, GLON = 0.009;
-    let _waterIdx = null;
-    function waterIndex() {
-      if (_waterIdx) return _waterIdx;
-      const map = new Map();
-      const nodes = [];
-      const k = (i, j) => i + ':' + j;
-      for (let lat = 46.702; lat <= 47.065; lat += GLAT) {
-        for (let lon = 17.242; lon <= 18.175; lon += GLON) {
-          if (!onWater(lat, lon)) continue;
-          const i = Math.round(lat / GLAT), j = Math.round(lon / GLON);
-          const n = { lat, lon, i, j, id: nodes.length };
-          nodes.push(n);
-          map.set(k(i, j), n);
-        }
-      }
-      _waterIdx = { map, nodes, k };
-      return _waterIdx;
-    }
-
-    function snapWater(lat, lon) {
-      const g = waterIndex();
-      const i0 = Math.round(lat / GLAT), j0 = Math.round(lon / GLON);
-      let best = null, bd = 1e9;
-      for (let di = -4; di <= 4; di++) {
-        for (let dj = -4; dj <= 4; dj++) {
-          const n = g.map.get(g.k(i0 + di, j0 + dj));
-          if (!n) continue;
-          const d = haversineKm(lat, lon, n.lat, n.lon);
-          if (d < bd) { bd = d; best = n; }
-        }
-      }
-      if (best) return best;
-      for (let i = 0; i < g.nodes.length; i++) {
-        const n = g.nodes[i];
-        const d = haversineKm(lat, lon, n.lat, n.lon);
-        if (d < bd) { bd = d; best = n; }
-      }
-      return best;
-    }
-
-    function simplifyWaterPath(pts) {
-      if (pts.length < 3) return pts;
-      const out = [pts[0]];
-      for (let i = 1; i < pts.length - 1; i++) {
-        const a = out[out.length - 1], c = pts[i + 1];
-        if (haversineKm(a.lat, a.lon, c.lat, c.lon) > 2.0 || !segmentOnWater(a, c, 8)) out.push(pts[i]);
-      }
-      out.push(pts[pts.length - 1]);
-      return out;
-    }
-
-    function astarWater(from, to) {
-      const g = waterIndex();
-      const s = snapWater(from.lat, from.lon);
-      const t = snapWater(to.lat, to.lon);
-      if (!s || !t) return null;
-      if (s.id === t.id) return [{ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon }];
-      const open = [{ n: s, g: 0, f: haversineKm(s.lat, s.lon, t.lat, t.lon), parent: null }];
-      const bestG = new Float64Array(g.nodes.length);
-      bestG.fill(1e15);
-      bestG[s.id] = 0;
-      const closed = new Uint8Array(g.nodes.length);
-      let guard = 0;
-      while (open.length && guard++ < 25000) {
-        let mi = 0;
-        for (let i = 1; i < open.length; i++) if (open[i].f < open[mi].f) mi = i;
-        const cur = open[mi];
-        open[mi] = open[open.length - 1];
-        open.pop();
-        if (closed[cur.n.id]) continue;
-        closed[cur.n.id] = 1;
-        if (cur.n.id === t.id) {
-          const pts = [];
-          let x = cur;
-          while (x) { pts.push({ lat: x.n.lat, lon: x.n.lon }); x = x.parent; }
-          pts.reverse();
-          return simplifyWaterPath(pts);
-        }
-        for (let di = -1; di <= 1; di++) {
-          for (let dj = -1; dj <= 1; dj++) {
-            if (!di && !dj) continue;
-            const nb = g.map.get(g.k(cur.n.i + di, cur.n.j + dj));
-            if (!nb || closed[nb.id]) continue;
-            if (!segmentOnWater(cur.n, nb, 4)) continue;
-            const ng = cur.g + haversineKm(cur.n.lat, cur.n.lon, nb.lat, nb.lon);
-            if (ng >= bestG[nb.id] - 1e-9) continue;
-            bestG[nb.id] = ng;
-            open.push({
-              n: nb, g: ng,
-              f: ng + haversineKm(nb.lat, nb.lon, t.lat, t.lon),
-              parent: cur
-            });
-          }
-        }
-      }
-      return null;
-    }
-
-    function corridorToGoal(start, goal) {
-      const pts = [{ lat: start.lat, lon: start.lon }];
-      function append(arr) {
-        if (!arr) return;
-        for (let i = 0; i < arr.length; i++) {
-          const p = arr[i];
-          const last = pts[pts.length - 1];
-          if (haversineKm(last.lat, last.lon, p.lat, p.lon) < 0.08) continue;
-          pts.push({ lat: p.lat, lon: p.lon });
-        }
-      }
-      if (needsTihanyCrossing(start, goal)) {
-        const goingWest = goal.lon < start.lon;
-        const ch = channelSequence(goingWest);
-        const a = astarWater(start, ch[0]);
-        if (a && a.length) append(a);
-        append(ch);
-        const b = astarWater(ch[ch.length - 1], goal);
-        if (b && b.length) append(b);
-        else append(goingWest ? WEST_GATES : WEST_GATES.slice().reverse());
-      } else {
-        append(astarWater(start, goal));
-      }
-      const last = pts[pts.length - 1];
-      if (haversineKm(last.lat, last.lon, goal.lat, goal.lon) > 0.12) {
-        pts.push({ lat: goal.lat, lon: goal.lon });
-      }
-      return pts;
     }
 
     function tell(msg) {
@@ -1447,110 +1299,6 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       };
     }
 
-    function stepToward(pos, goal, stepKm) {
-      const h = calcBearing(pos.lat, pos.lon, goal.lat, goal.lon);
-      const offsets = [0, 8, -8, 16, -16, 24, -24, 32, -32, 45, -45, 60, -60];
-      for (let i = 0; i < offsets.length; i++) {
-        const heading = (h + offsets[i] + 360) % 360;
-        const next = destinationPoint(pos.lat, pos.lon, heading, stepKm);
-        if (segmentOnWater(pos, next, 8)) return { next, heading, stepKm };
-      }
-      const smaller = destinationPoint(pos.lat, pos.lon, h, stepKm * 0.4);
-      if (segmentOnWater(pos, smaller, 8)) return { next: smaller, heading: h, stepKm: stepKm * 0.4 };
-      return null;
-    }
-
-    function greedyVmgRoute(start, goal, polar) {
-      const t0 = window._routeStartMs || Date.now();
-      const path = [[start.lat, start.lon]];
-      let pos = { lat: start.lat, lon: start.lon };
-      let totalNM = 0, totalTime = 0;
-
-      function addStep(next, speed) {
-        const d = haversineNM(pos.lat, pos.lon, next.lat, next.lon);
-        if (d < 1e-6) return;
-        path.push([next.lat, next.lon]);
-        totalNM += d;
-        totalTime += d / Math.max(speed, 0.5);
-        pos = { lat: next.lat, lon: next.lon };
-      }
-
-      function greedyTo(target, maxIter, fine) {
-        for (let i = 0; i < maxIter; i++) {
-          const distNM = haversineNM(pos.lat, pos.lon, target.lat, target.lon);
-          if (distNM < (fine ? 0.12 : 0.35)) return true;
-          const stepNM = fine ? 0.05 : Math.min(0.40, distNM);
-          const wind = getWindAt(pos.lat, pos.lon, t0 + totalTime * 3600000);
-          const bearing = calcBearing(pos.lat, pos.lon, target.lat, target.lon);
-          let best = null;
-          function consider(heading, speed, scale) {
-            const testPos = destinationPoint(pos.lat, pos.lon, heading, stepNM * 1.852 * scale);
-            if (!segmentOnWater(pos, testPos, fine ? 6 : 10)) return;
-            const vmg = speed * Math.cos(angleDiff(heading, bearing) * Math.PI / 180);
-            if (vmg < -0.2 && !fine) return;
-            if (!best || vmg > best.vmg) best = { speed, next: testPos, vmg };
-          }
-          const twa0 = angleDiff(bearing, wind.dir);
-          const spd0raw = getBoatSpeed(polar, wind.spd, twa0).speed;
-          const spd0 = twa0 >= beatAngleAt(polar, wind.spd) ? Math.max(spd0raw, 1.5) : spd0raw;
-          const offs = fine ? [0, 8, -8, 16, -16, 28, -28] : [0, 10, -10];
-          for (let o = 0; o < offs.length; o++) consider((bearing + offs[o] + 360) % 360, spd0, 1);
-          if (!fine) {
-            for (let twa = 35; twa <= 165; twa += 5) {
-              const res = getBoatSpeed(polar, wind.spd, twa);
-              consider((wind.dir + twa) % 360, res.speed, 1);
-              consider((wind.dir - twa + 360) % 360, res.speed, 1);
-            }
-          }
-          if (!best) {
-            const moved = stepToward(pos, target, stepNM * 1.852);
-            if (!moved) return distNM < 0.6;
-            best = { speed: 2.5, next: moved.next };
-          }
-          addStep(best.next, best.speed);
-        }
-        return haversineNM(pos.lat, pos.lon, target.lat, target.lon) < 0.6;
-      }
-
-      function walkChannelTo(wp) {
-        const distKm = haversineKm(pos.lat, pos.lon, wp.lat, wp.lon);
-        if (distKm < 0.12) {
-          addStep(wp, 3);
-          return;
-        }
-        const n = Math.max(2, Math.ceil(distKm / 0.10));
-        const from = { lat: pos.lat, lon: pos.lon };
-        for (let s = 1; s <= n; s++) {
-          const t = s / n;
-          const next = { lat: from.lat + (wp.lat - from.lat) * t, lon: from.lon + (wp.lon - from.lon) * t };
-          const wind = getWindAt(next.lat, next.lon, t0 + totalTime * 3600000);
-          const brg = calcBearing(from.lat, from.lon, wp.lat, wp.lon);
-          const spd = Math.max(getBoatSpeed(polar, wind.spd, angleDiff(brg, wind.dir)).speed, 2);
-          addStep(next, spd);
-        }
-      }
-
-      const corridor = corridorToGoal(start, goal);
-      for (let i = 1; i < corridor.length; i++) {
-        greedyTo(corridor[i], 36, false);
-        if (haversineKm(pos.lat, pos.lon, corridor[i].lat, corridor[i].lon) > 0.35) {
-          walkChannelTo(corridor[i]);
-        }
-      }
-      if (haversineNM(pos.lat, pos.lon, goal.lat, goal.lon) > 0.35) walkChannelTo(goal);
-
-      let ok = haversineNM(pos.lat, pos.lon, goal.lat, goal.lon) < 0.8;
-      if (!ok && haversineNM(pos.lat, pos.lon, goal.lat, goal.lon) < 2.5) {
-        walkChannelTo(goal);
-        ok = haversineNM(pos.lat, pos.lon, goal.lat, goal.lon) < 0.8;
-      }
-      if (!ok && onWater(goal.lat, goal.lon)) {
-        addStep(goal, 3);
-        ok = true;
-      }
-      return { path: smoothPath(path), totalNM, totalTime, ok, nodes: path.length, isos: 0 };
-    }
-
     function timeAlongPath(path, totalTime) {
       const d = [0];
       for (let i = 1; i < path.length; i++) {
@@ -1694,7 +1442,6 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       window._blendHours = getBlendHours();
       const hasObs = Object.keys(allStations).length > 0;
       const useNow = window._allowObs && document.getElementById('useNowcast') && document.getElementById('useNowcast').checked;
-      const nowcastMethod = (document.getElementById('nowcastMethod') || {}).value || 'isochrone';
       const checkedModels = selectedModelInputs();
       const missingDl = checkedModels.filter(inp => !forecasts[inp.value]);
       if (missingDl.length) {
@@ -1710,17 +1457,15 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         label: inp.dataset.label || inp.value,
         color: inp.dataset.color || '#3b82f6',
         fc: forecasts[inp.value],
-        method: 'isochrone'
       }));
       const jobs = [];
       if (useNow) {
         if (!hasObs) { tell('A met.hu méréshez előbb töltsd le a szelet (zöld gomb: Friss szél lekérése).'); return; }
         jobs.push({
           id: 'nowcast',
-          label: 'met.hu mérés' + (nowcastMethod === 'vmg' ? ' (mohó VMG)' : ' (isochrone)'),
+          label: 'met.hu mérés',
           color: '#94a3b8',
           fc: null,
-          method: nowcastMethod
         });
       }
       for (let i = 0; i < modelJobs.length; i++) jobs.push(modelJobs[i]);
@@ -1777,10 +1522,8 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         await new Promise(r => setTimeout(r, 40));
         activeForecast = job.fc;
         const t0 = performance.now();
-        const drawIso = one && job.method !== 'vmg';
-        const res = job.method === 'vmg'
-          ? greedyVmgRoute(currentPos, target, polar)
-          : isochroneRoute(currentPos, target, polar, drawIso);
+        const drawIso = one;
+        const res = isochroneRoute(currentPos, target, polar, drawIso);
         const ms = Math.round(performance.now() - t0);
         const w0 = getWindAt(currentPos.lat, currentPos.lon, window._routeStartMs);
         const cov = coverageOf(job.fc);
@@ -1845,7 +1588,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
           </tbody>
         </table>
         <span style="font-size:0.8rem;opacity:0.85;">
-          ${one && jobs[0].method !== 'vmg' ? 'Isochrone görbék. ' : ''}
+          ${one ? 'Isochrone görbék. ' : ''}
           ${window._allowObs ? ('met.hu keverés 0–' + window._blendHours.toFixed(2) + ' óra.') : 'Csak előrejelzés (met.hu ki).'}
         </span>
         ${skipped.length ? ('<div class="warn">Kihagyva (nincs adat az indulásra): ' + skipped.join('; ') + '.</div>') : ''}
