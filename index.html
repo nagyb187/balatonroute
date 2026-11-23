@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Balaton Isochrone">
+  <meta name="apple-mobile-web-app-title" content="Balaton Routing">
+  <meta name="theme-color" content="#0f172a">
   <title>Balaton Routing – vitorlás útvonaltervező a Balatonra, élő széllel</title>
+  <link rel="icon" type="image/png" href="icon.png" sizes="512x512">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <meta name="description" content="Ingyenes vitorlás útvonaltervező (isochrone) a Balatonra: hajópolár, élő HungaroMet szélmérés és több időjárási modell előrejelzése alapján számolja a leggyorsabb útvonalat.">
   <link rel="canonical" href="https://balatonrouting.hu/">
   <meta property="og:type" content="website">
@@ -19,8 +23,11 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
-    .header { background: #1e293b; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
-    .header h1 { font-size: 1.05rem; font-weight: 600; }
+    .header { background: #1e293b; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; gap: 10px; }
+    .header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .header-logo { width: 36px; height: 36px; border-radius: 18%; flex-shrink: 0; display: block; }
+    .header h1 { font-size: 1.05rem; font-weight: 600; line-height: 1.15; }
+    .header-sub { margin: 1px 0 0; font-size: 0.72rem; font-weight: 400; color: #94a3b8; line-height: 1.25; }
     .container { padding: 12px; max-width: 980px; margin: 0 auto; padding-bottom: 60px; }
     .card { background: #1e293b; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
     label { display: block; font-size: 0.78rem; color: #94a3b8; margin-bottom: 4px; }
@@ -126,18 +133,25 @@
     .site-footer p { margin: 0 0 8px; }
     .site-footer .footer-links { color: #cbd5e1; }
     .site-footer .disclaimer { color: #94a3b8; }
+    .site-footer .credit { color: #64748b; font-size: 0.75rem; }
     @media (max-width: 420px) {
-      .header { gap: 8px; }
+      .header { gap: 8px; padding: 8px 12px; }
+      .header-logo { width: 32px; height: 32px; }
       .header h1 { font-size: 0.95rem; }
+      .header-sub { font-size: 0.65rem; }
       a.btn-donate { font-size: 0.74rem; padding: 5px 9px; }
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <a href="https://nbsailing.hu" style="color:#94a3b8;font-size:0.75rem;text-decoration:none;">← nbsailing.hu</a>
-      <h1>Balaton Polar Isochrone · 22e</h1>
+    <div class="header-brand">
+      <img class="header-logo" src="icon.png" width="36" height="36" alt="Balaton Routing">
+      <div>
+        <a href="https://nbsailing.hu" style="color:#94a3b8;font-size:0.75rem;text-decoration:none;">← nbsailing.hu</a>
+        <h1>Balaton Routing</h1>
+        <p class="header-sub">Útvonaltervező balatoni vitorlázóknak</p>
+      </div>
     </div>
     <div class="header-right">
       <a class="btn-donate" href="https://ko-fi.com/balatonrouting" target="_blank" rel="noopener">☕ Támogatás</a>
@@ -275,7 +289,8 @@
       ·
       <a href="https://revolut.me/benedeknagy" target="_blank" rel="noopener">Apple Pay / Google Pay (Revolut)</a>
     </p>
-    <p class="disclaimer">A tervező tájékoztató jellegű hobbieszköz. Nem helyettesíti a körültekintő hajózást, a saját ítélőképességet és a hivatalos előrejelzéseket vagy figyelmeztetéseket (például a viharjelző lámpákat). Az útvonal tévedhet: a sekélyvizet, az akadályokat, valamint a kikötői és a fürdőzónákat nem veszi figyelembe. A használat saját felelősségre történik; a készítő nem vállal felelősséget kárért, például zátonyra futásért.</p>
+    <p class="disclaimer">A tervező tájékoztató jellegű hobbieszköz. A déli part menti sekély sávot figyelembe veszi, de nem ismerhet minden akadályt, mélységváltozást, kikötői és fürdőzónát. Nem helyettesíti a körültekintő hajózást, a saját ítélőképességet és a hivatalos előrejelzéseket, figyelmeztetéseket (például a viharjelző lámpákat). A használat saját felelősségre történik; a készítő nem vállal felelősséget kárért, például zátonyra futásért.</p>
+    <p class="credit">Logó: tóvonal © OpenStreetMap contributors</p>
   </footer>
   <script>
     const WORKER_URL = "https://balaton-szel-odp.4g6gh9h496.workers.dev";
@@ -1861,18 +1876,14 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
 
     const DONATE_BAR_KEY = 'br_donate_bar';
 
-    function isDonatePreview() {
-      return /(?:^|[?&])previewDonate=1(?:&|$)/.test(location.search);
-    }
-
     function showDonateBar() {
       const bar = document.getElementById('donateBar');
       const note = document.getElementById('routeDisclaimer');
       if (note) note.hidden = false;
       if (!bar) return;
       try {
-        if (!isDonatePreview() && sessionStorage.getItem(DONATE_BAR_KEY)) return;
-        if (!isDonatePreview()) sessionStorage.setItem(DONATE_BAR_KEY, '1');
+        if (sessionStorage.getItem(DONATE_BAR_KEY)) return;
+        sessionStorage.setItem(DONATE_BAR_KEY, '1');
       } catch (e) {}
       bar.hidden = false;
     }
@@ -1886,22 +1897,6 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
     function initDonateUI() {
       const close = document.getElementById('donateBarClose');
       if (close) close.addEventListener('click', dismissDonateBar);
-      if (isDonatePreview()) {
-        const bar = document.getElementById('donateBar');
-        const note = document.getElementById('routeDisclaimer');
-        const status = document.getElementById('result');
-        if (bar) bar.hidden = false;
-        if (note) note.hidden = false;
-        if (status && !status.innerHTML) {
-          status.style.display = 'block';
-          status.innerHTML = '<strong>Szóló Almádi</strong> • mintaútvonal (előnézet)<br>Indulás: most';
-        }
-        const shot = new URLSearchParams(location.search).get('previewShot');
-        const el = shot === 'footer' ? document.querySelector('.site-footer')
-          : shot === 'bar' ? document.getElementById('donateBar')
-          : null;
-        if (el) el.scrollIntoView({ block: shot === 'footer' ? 'end' : 'center' });
-      }
     }
 
     initMap();
