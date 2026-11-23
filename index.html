@@ -56,6 +56,81 @@
     }
     .legend-row { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 8px 0 4px; font-size: 0.82rem; color: #e2e8f0; }
     .legend-item { display: flex; align-items: center; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
+    a.btn-donate {
+      display: inline-block;
+      width: auto;
+      padding: 6px 11px;
+      margin: 0;
+      border-radius: 999px;
+      background: #fbbf24;
+      color: #0f172a;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    a.btn-donate:hover { background: #f59e0b; }
+    a.btn-donate:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+    .donate-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #1e3a5f;
+      border: 1px solid #334155;
+      font-size: 0.86rem;
+      color: #e2e8f0;
+    }
+    .donate-bar[hidden] { display: none !important; }
+    .donate-bar-text { flex: 1 1 180px; }
+    .donate-bar-links { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+    .donate-bar-links a, .site-footer a {
+      color: #fbbf24;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .donate-bar-links a:hover, .site-footer a:hover { text-decoration: underline; }
+    button.donate-bar-close {
+      width: auto;
+      margin: 0 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      font-weight: 500;
+      line-height: 1;
+    }
+    button.donate-bar-close:hover { color: #e2e8f0; background: #334155; }
+    .route-disclaimer {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: #94a3b8;
+    }
+    .route-disclaimer[hidden] { display: none !important; }
+    .site-footer {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 8px 16px 28px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: #94a3b8;
+    }
+    .site-footer p { margin: 0 0 8px; }
+    .site-footer .footer-links { color: #cbd5e1; }
+    .site-footer .disclaimer { color: #94a3b8; }
+    @media (max-width: 420px) {
+      .header { gap: 8px; }
+      .header h1 { font-size: 0.95rem; }
+      a.btn-donate { font-size: 0.74rem; padding: 5px 9px; }
+    }
   </style>
 </head>
 <body>
@@ -64,7 +139,10 @@
       <a href="https://nbsailing.hu" style="color:#94a3b8;font-size:0.75rem;text-decoration:none;">← nbsailing.hu</a>
       <h1>Balaton Polar Isochrone · 22e</h1>
     </div>
-    <span id="clock" style="font-size:0.8rem;color:#94a3b8;"></span>
+    <div class="header-right">
+      <a class="btn-donate" href="https://ko-fi.com/balatonrouting" target="_blank" rel="noopener">☕ Támogatás</a>
+      <span id="clock" style="font-size:0.8rem;color:#94a3b8;"></span>
+    </div>
   </div>
   <div class="container">
     <div class="card">
@@ -170,6 +248,15 @@
     <div class="card">
       <button class="btn-primary" onclick="planFullRoute()">Isochrone útvonal (összes kijelölt)</button>
       <div id="result" style="display:none;" class="result"></div>
+      <div id="donateBar" class="donate-bar" hidden>
+        <span class="donate-bar-text">Hasznos volt? Egy kávéval támogathatod 🙏</span>
+        <span class="donate-bar-links">
+          <a href="https://ko-fi.com/balatonrouting" target="_blank" rel="noopener">Ko-fi</a>
+          <a href="https://revolut.me/benedeknagy" target="_blank" rel="noopener">Apple Pay / Google Pay (Revolut)</a>
+        </span>
+        <button type="button" class="donate-bar-close" id="donateBarClose" aria-label="Bezárás">×</button>
+      </div>
+      <p id="routeDisclaimer" class="route-disclaimer" hidden>Tájékoztató hobbieszköz: nem helyettesíti a körültekintő hajózást és a hivatalos viharjelzést. Az útvonal tévedhet; a használat saját felelősségre történik.</p>
     </div>
     <div class="card">
       <div id="map"></div>
@@ -181,6 +268,15 @@
       </div>
     </div>
   </div>
+  <footer class="site-footer">
+    <p>A Balaton Routing ingyenes hobbiprojekt, csak adományokból működik. Az adomány nem jár plusz funkcióval vagy előnnyel.</p>
+    <p class="footer-links">
+      <a href="https://ko-fi.com/balatonrouting" target="_blank" rel="noopener">☕ Támogatás (Ko-fi)</a>
+      ·
+      <a href="https://revolut.me/benedeknagy" target="_blank" rel="noopener">Apple Pay / Google Pay (Revolut)</a>
+    </p>
+    <p class="disclaimer">A tervező tájékoztató jellegű hobbieszköz. Nem helyettesíti a körültekintő hajózást, a saját ítélőképességet és a hivatalos előrejelzéseket vagy figyelmeztetéseket (például a viharjelző lámpákat). Az útvonal tévedhet: a sekélyvizet, az akadályokat, valamint a kikötői és a fürdőzónákat nem veszi figyelembe. A használat saját felelősségre történik; a készítő nem vállal felelősséget kárért, például zátonyra futásért.</p>
+  </footer>
   <script>
     const WORKER_URL = "https://balaton-szel-odp.4g6gh9h496.workers.dev";
 
@@ -1734,6 +1830,7 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
         ${clampedRows.length ? ('<div class="warn">Sárga: az indulás (' + startLabel + ') kívül esik a modellből. ' + clampedRows.map(r => r.label + ' csak ' + fmtShort(r.until) + '-ig tart').join('; ') + '.</div>') : ''}
       `;
       setupScrub(rows);
+      showDonateBar();
     }
 
     function haversineNM(lat1, lon1, lat2, lon2) {
@@ -1762,7 +1859,53 @@ const balatonPolygon = [[46.72568, 17.24369], [46.7256, 17.24619], [46.7282, 17.
       return { lat: φ2*180/Math.PI, lon: ((λ2*180/Math.PI)+540)%360-180 };
     }
 
+    const DONATE_BAR_KEY = 'br_donate_bar';
+
+    function isDonatePreview() {
+      return /(?:^|[?&])previewDonate=1(?:&|$)/.test(location.search);
+    }
+
+    function showDonateBar() {
+      const bar = document.getElementById('donateBar');
+      const note = document.getElementById('routeDisclaimer');
+      if (note) note.hidden = false;
+      if (!bar) return;
+      try {
+        if (!isDonatePreview() && sessionStorage.getItem(DONATE_BAR_KEY)) return;
+        if (!isDonatePreview()) sessionStorage.setItem(DONATE_BAR_KEY, '1');
+      } catch (e) {}
+      bar.hidden = false;
+    }
+
+    function dismissDonateBar() {
+      const bar = document.getElementById('donateBar');
+      if (bar) bar.hidden = true;
+      try { sessionStorage.setItem(DONATE_BAR_KEY, '1'); } catch (e) {}
+    }
+
+    function initDonateUI() {
+      const close = document.getElementById('donateBarClose');
+      if (close) close.addEventListener('click', dismissDonateBar);
+      if (isDonatePreview()) {
+        const bar = document.getElementById('donateBar');
+        const note = document.getElementById('routeDisclaimer');
+        const status = document.getElementById('result');
+        if (bar) bar.hidden = false;
+        if (note) note.hidden = false;
+        if (status && !status.innerHTML) {
+          status.style.display = 'block';
+          status.innerHTML = '<strong>Szóló Almádi</strong> • mintaútvonal (előnézet)<br>Indulás: most';
+        }
+        const shot = new URLSearchParams(location.search).get('previewShot');
+        const el = shot === 'footer' ? document.querySelector('.site-footer')
+          : shot === 'bar' ? document.getElementById('donateBar')
+          : null;
+        if (el) el.scrollIntoView({ block: shot === 'footer' ? 'end' : 'center' });
+      }
+    }
+
     initMap();
+    initDonateUI();
     document.getElementById('departAt').value = localDateTimeValue(new Date());
   </script>
 </body>
