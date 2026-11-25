@@ -1,0 +1,53 @@
+# Polár-kérés jegyeknél: ha a beküldő bejelölte a hajónév-közzétételi
+# hozzájárulást az issue formon, rákerül a 'publikálható-név' címke;
+# ha később kiveszi a pipát, lekerül. (A webes űrlapon át érkező jegyek
+# címkéjét a Worker állítja be; azoknál nincs jelölőnégyzet, így ezt a
+# workflow nem bántja.)
+name: Polár hozzájárulás címke
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  issues: write
+
+concurrency:
+  group: polar-consent-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  label:
+    if: contains(github.event.issue.labels.*.name, 'polár-kérés')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Hozzájárulás ellenőrzése
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          # A jegy szövege csak környezeti változóként kerül be, sosem a
+          # shell-parancsba interpolálva (script-injekció ellen).
+          BODY: ${{ github.event.issue.body }}
+          HAS_LABEL: ${{ contains(github.event.issue.labels.*.name, 'publikálható-név') }}
+        run: |
+          set -euo pipefail
+          consent='A hajó tulajdonosa vagyok, vagy engedélyem van rá, és hozzájárulok, hogy a hajó neve megjelenjen a nyilvános polárlistában'
+          if printf '%s\n' "$BODY" | grep -qiF -- "- [x] $consent"; then
+            if [ "$HAS_LABEL" != "true" ]; then
+              gh api --method POST "repos/$REPO/issues/$NUMBER/labels" -f 'labels[]=publikálható-név' >/dev/null
+              echo "Címke hozzáadva."
+            else
+              echo "Már rajta van a címke."
+            fi
+          elif printf '%s\n' "$BODY" | grep -qiF -- "- [ ] $consent"; then
+            if [ "$HAS_LABEL" = "true" ]; then
+              gh api --method DELETE "repos/$REPO/issues/$NUMBER/labels/publik%C3%A1lhat%C3%B3-n%C3%A9v" >/dev/null
+              echo "Címke levéve (a hozzájárulás nincs bejelölve)."
+            else
+              echo "Nincs hozzájárulás, nincs teendő."
+            fi
+          else
+            echo "Nincs issue form jelölőnégyzet (pl. webes űrlapról jött), nincs teendő."
+          fi
