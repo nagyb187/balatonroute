@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <title>Hogyan működik? – Balaton Routing</title>
+  <link rel="icon" type="image/png" href="icon.png" sizes="512x512">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="canonical" href="https://balatonrouting.hu/howto.html">
+  <meta name="description" content="Hogyan számol a Balaton Routing: szélforrások, polár, izokron módszer, sekély sáv, megosztás és GPX – röviden, vitorlázóknak.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://balatonrouting.hu/howto.html">
+  <meta property="og:title" content="Hogyan működik? – Balaton Routing">
+  <meta property="og:description" content="Szélforrások, polár, izokron módszer, sekély sáv, megosztás és GPX – röviden, vitorlázóknak.">
+  <meta property="og:locale" content="hu_HU">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+    .header { background: #1e293b; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; gap: 10px; }
+    .header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .header-logo { width: 36px; height: 36px; border-radius: 18%; flex-shrink: 0; display: block; }
+    .header h1 { font-size: 1.05rem; font-weight: 600; line-height: 1.15; }
+    .header h1 a { color: inherit; text-decoration: none; }
+    .header-sub { margin: 1px 0 0; font-size: 0.72rem; font-weight: 400; color: #94a3b8; line-height: 1.25; }
+    .header-nb { display: block; margin-top: 3px; font-size: 0.62rem; font-weight: 400; color: #64748b; text-decoration: none; letter-spacing: 0.01em; line-height: 1.2; }
+    .header-nb:hover { color: #94a3b8; text-decoration: underline; }
+    .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
+    a.btn-donate {
+      display: inline-block; width: auto; padding: 6px 11px; margin: 0;
+      border-radius: 999px; background: #fbbf24; color: #0f172a;
+      font-size: 0.78rem; font-weight: 600; text-decoration: none; white-space: nowrap; line-height: 1.2;
+    }
+    a.btn-donate:hover { background: #f59e0b; }
+    .container { padding: 12px; max-width: 760px; margin: 0 auto; padding-bottom: 40px; }
+    .card { background: #1e293b; border-radius: 12px; padding: 18px 18px 8px; margin-bottom: 12px; }
+    .lead { font-size: 1.02rem; line-height: 1.55; color: #e2e8f0; margin-bottom: 14px; }
+    article h2 { font-size: 1.15rem; font-weight: 650; margin: 8px 0 10px; color: #f8fafc; }
+    article h3 { font-size: 1.02rem; font-weight: 650; margin: 18px 0 10px; color: #f1f5f9; }
+    article p, article li { font-size: 0.95rem; line-height: 1.6; color: #cbd5e1; }
+    article p { margin: 0 0 12px; }
+    article ul { margin: 0 0 14px 1.2em; }
+    article li { margin: 0 0 6px; }
+    article strong { color: #f8fafc; font-weight: 650; }
+    .diagram { background: #f8fafc; border-radius: 12px; overflow: hidden; margin: 8px 0 14px; }
+    .diagram svg { display: block; width: 100%; height: auto; }
+    .caption { font-size: 0.82rem; color: #94a3b8; margin: -6px 0 14px; font-style: italic; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86em; color: #fde68a; }
+    .site-footer {
+      max-width: 760px; margin: 0 auto; padding: 8px 16px 28px;
+      font-size: 0.8rem; line-height: 1.5; color: #94a3b8;
+    }
+    .site-footer p { margin: 0 0 8px; }
+    .site-footer a { color: #fbbf24; font-weight: 600; text-decoration: none; }
+    .site-footer a:hover { text-decoration: underline; }
+    .site-footer .credit { color: #64748b; font-size: 0.75rem; }
+    .site-footer .impresszum { color: #64748b; font-size: 0.75rem; }
+    .polar-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 8px 0 14px; }
+    .polar-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .polar-table caption { caption-side: top; text-align: left; font-weight: 650; color: #f8fafc; margin: 0 0 8px; font-size: 0.9rem; }
+    .polar-table th, .polar-table td { padding: 5px 6px; text-align: right; border-bottom: 1px solid #334155; color: #cbd5e1; white-space: nowrap; }
+    .polar-table th { background: #1e3a8a; color: #fff; font-weight: 600; }
+    .polar-table th[scope="row"] { text-align: left; background: #16305f; }
+    .polar-table tr.beat th, .polar-table tr.beat td { color: #fde68a; }
+    .polar-table tr.beat th[scope="row"] { color: #fde68a; }
+    .polar-table tr.run th, .polar-table tr.run td { color: #7dd3fc; }
+    .polar-table tr.run th[scope="row"] { color: #7dd3fc; }
+    @media (max-width: 520px) {
+      .polar-table { font-size: 0.75rem; }
+      .polar-table th, .polar-table td { padding: 4px 5px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-brand">
+      <a href="index.html"><img class="header-logo" src="icon.png" width="36" height="36" alt="Balaton Routing"></a>
+      <div>
+        <h1><a href="index.html">Balaton Routing</a></h1>
+        <p class="header-sub">Hogyan számol a tervező?</p>
+        <a class="header-nb" href="https://nbsailing.hu" target="_blank" rel="noopener">NB Sailing projekt</a>
+      </div>
+    </div>
+    <div class="header-right">
+      <a class="btn-donate" href="https://ko-fi.com/balatonrouting" target="_blank" rel="noopener">☕ Támogatás</a>
+    </div>
+  </div>
+  <div class="container">
+    <article class="card">
+      <p class="lead">A Balaton Routing egy ingyenes, tájékoztató hobbieszköz. Megadod a hajót, a kezdő- és a célpontot, az indulás idejét és a szélforrásokat — a tervező ezekből kiszámolja, merre érdemes menni, hogy a lehető leghamarabb odaérj. Nem helyettesíti a körültekintő hajózást, a saját ítélőképességet és a hivatalos viharjelzést.</p>
+
+      <h2>Honnan jön a szél?</h2>
+      <p>Kétféle adatot használhatsz, és a kettőt össze is lehet keverni.</p>
+      <p><strong>Az élő mérés</strong> a HungaroMet (met.hu / odp.met.hu) balatoni állomásairól jön. A tervező a közeli állomások szélirányát és átlagsebességét a távolság négyzetével fordított arányban súlyozza: minél közelebb van egy állomás, annál jobban számít. A széllökéseket nem veszi figyelembe, csak az átlagszelet. Ez a mérés <strong>csak akkor használható, ha most indulsz</strong>. Későbbi indulásnál a tervező figyelmeztet, hogy a met.hu mérés nem vehető figyelembe.</p>
+      <p><strong>Az előrejelzés</strong> az Open-Meteo modelljeiből jön. Több modellt is bejelölhetsz; a tervező mindegyikre külön útvonalat számol, nem vonja össze őket egyetlen „átlagszéllé”. A listában most ezek vannak:</p>
+      <ul>
+        <li>ICON-D2 (~2 km, kb. 48 óra) — alapértelmezésként bekapcsolva</li>
+        <li>ICON-EU (~7 km, kb. 5 nap)</li>
+        <li>ALADIN CHMI (~2,3 km, kb. 3 nap)</li>
+        <li>AROME GeoSphere (~2,5 km, kb. 3 nap)</li>
+        <li>GFS (hosszabb táv, kb. 10 nap)</li>
+      </ul>
+      <p>A <strong>met.hu-keverés</strong> csúszkájával azt állíthatod be, hogy az indulás után hány órán át, milyen arányban keveredjen a friss mérés a modellel. Az alapérték 2,0 óra (0 és 2 óra között, negyedórás lépésekben). Az induláskor még teljesen a mérés számít, aztán súlya egyenletesen csökken, és a beállított idő végére már csak a modell marad. Ha a csúszka nullán van, rögtön csak a modell számít.</p>
+      <p>A tervező nem számol tovább, mint ameddig az előrejelzés tart.</p>
+      <div class="diagram">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" role="img" aria-label="A met.hu mérés és a modell keverése az időben">
+          <rect width="640" height="200" fill="#f8fafc"/>
+          <text x="20" y="28" font-family="system-ui,sans-serif" font-size="16" fill="#0f172a">Szélkeverés az indulás után</text>
+          <line x1="60" y1="160" x2="600" y2="160" stroke="#64748b" stroke-width="2"/>
+          <line x1="60" y1="50" x2="60" y2="160" stroke="#64748b" stroke-width="2"/>
+          <polyline points="60,60 420,160" fill="none" stroke="#64748b" stroke-width="4"/>
+          <text x="70" y="55" font-family="system-ui,sans-serif" font-size="13" fill="#475569">met.hu mérés súlya</text>
+          <polyline points="60,160 420,60" fill="none" stroke="#f59e0b" stroke-width="4"/>
+          <text x="250" y="55" font-family="system-ui,sans-serif" font-size="13" fill="#b45309">modell súlya (pl. AROME, ICON-D2)</text>
+          <text x="52" y="178" font-family="system-ui,sans-serif" font-size="13" fill="#334155">indulás</text>
+          <text x="390" y="178" font-family="system-ui,sans-serif" font-size="13" fill="#334155">keverési idő (alap: 2 óra)</text>
+          <text x="520" y="130" font-family="system-ui,sans-serif" font-size="13" fill="#334155">csak modell</text>
+        </svg>
+      </div>
+      <p class="caption">Az ábra: az induláskor a mérés a meghatározó, a csúszkán beállított idő végére már csak a modell.</p>
+
+      <h2>Mi az a polár?</h2>
+      <p>A polár megmondja, hogy egy adott szélben, adott TWA-n (true wind angle, valódi szélhez mért szög) milyen gyorsan megy a hajó. Ebből a tervező tudja, mikor éri meg élesebben vagy tompábban menni, és mikor érdemes fordulni vagy halzolni.</p>
+      <p>Jelenleg két hajó van a listában (az Aiolos értékei a 2026-os ORC Club-bizonylatból valók; a <a href="#aiolos-polar">táblázat és az ábra</a> alább, ebben a szakaszban látható):</p>
+      <ul>
+        <li><strong>Elan 310</strong></li>
+        <li><strong>Aiolos – Elan 295 (HUN 295, ORC)</strong></li>
+      </ul>
+      <p>A két hajó polárja eltérő. Az Elan 310 táblája 6 és 20 csomó közötti szelekre, 52° és 150° közötti TWA-kra ad meg sebességet, és külön éles TWA-t (kb. 39–44°, szél függvényében). Az Aiolos a 2026-os ORC Club-bizonylat (006/26, 04890004NPW) szerint 4–24 csomóra van megadva, éles TWA-val és éles VMG-vel, valamint bőszeles TWA-val és bőszeles VMG-vel; a tervező ezt a 4–24 csomós táblát használja. A bőszeles TWA és a bőszeles VMG a táblában és az ábrán szerepel, a számítás ezeket egyelőre nem veszi figyelembe.</p>
+      <p>10°-nál kisebb TWA-n — ez a holtszög — a hajó a modell szerint nem halad. 10° és az éles TWA között a sebesség úgy emelkedik, hogy a szél felé mutató VMG pontosan a bizonylat éles TWA-ján a legnagyobb, és ott a bizonylat éles VMG-jét adja. Éles menetben tehát a táblában megadott éles TWA-val és éles VMG-vel számol; más irányokban a tábla szögeivel.</p>
+      <p>Ha a hajód nincs a listában, <a href="index.html#visszajelzes">saját polárt is beküldhetsz</a>. Addig a két tábla közül a hozzád közelebb állóval tervezz, és kezeld becslésnek.</p>
+
+      <h3 id="aiolos-polar">Aiolos mintapolár – Elan 295 (HUN 295, ORC)</h3>
+      <p>A tábla és az ábra a nyilvános <strong>ORC Club-bizonylatból</strong> való.</p>
+      <p>A bizonylat 4–24 csomós szelekre ad adatot; a tábla, az ábra és a tervező is ezt a tartományt használja. Az oszlopok a valódi szélsebességet (TWS, csomó), a sorok a TWA-t mutatják; a cellák a hajósebességet csomóban. Az éles TWA, az éles VMG, a bőszeles TWA és a bőszeles VMG külön sor.</p>
+      <p>A tervező útvonalszámítása ezt a 2026-os bizonylatot használja, a 4 és a 24 csomós oszloppal együtt. Éles menetben a bizonylat éles TWA-jával és éles VMG-jével számol; 10° alatt nem halad, a kettő között a sebesség úgy nő, hogy a szél felé mutató VMG éppen az éles TWA-n legyen a legnagyobb. 150° után a tábla utolsó két pontjából lineárisan extrapolál.</p>
+      <div class="polar-wrap">
+        <table class="polar-table">
+          <caption>Aiolos – Elan 295 (HUN 295), ORC Club-bizonylat 006/26 (2026) — hajósebesség, kn</caption>
+          <tr><th scope="col">TWA</th><th scope="col">4 kn</th><th scope="col">6 kn</th><th scope="col">8 kn</th><th scope="col">10 kn</th><th scope="col">12 kn</th><th scope="col">14 kn</th><th scope="col">16 kn</th><th scope="col">20 kn</th><th scope="col">24 kn</th></tr><tr class="beat"><th scope="row">Éles TWA</th><td>46.1°</td><td>43.4°</td><td>41.2°</td><td>39.7°</td><td>38.7°</td><td>38.3°</td><td>38.2°</td><td>38.6°</td><td>40.1°</td></tr><tr class="beat"><th scope="row">Éles VMG (kn)</th><td>2.15</td><td>3.10</td><td>3.79</td><td>4.27</td><td>4.54</td><td>4.64</td><td>4.68</td><td>4.69</td><td>4.58</td></tr><tr><th scope="row">52°</th><td>3.38</td><td>4.72</td><td>5.63</td><td>6.18</td><td>6.45</td><td>6.57</td><td>6.62</td><td>6.67</td><td>6.64</td></tr><tr><th scope="row">60°</th><td>3.62</td><td>4.98</td><td>5.87</td><td>6.37</td><td>6.63</td><td>6.76</td><td>6.82</td><td>6.87</td><td>6.87</td></tr><tr><th scope="row">75°</th><td>3.79</td><td>5.13</td><td>6.04</td><td>6.52</td><td>6.80</td><td>6.98</td><td>7.10</td><td>7.21</td><td>7.24</td></tr><tr><th scope="row">90°</th><td>3.87</td><td>5.38</td><td>6.28</td><td>6.66</td><td>6.85</td><td>7.08</td><td>7.28</td><td>7.55</td><td>7.67</td></tr><tr><th scope="row">110°</th><td>3.93</td><td>5.48</td><td>6.45</td><td>6.91</td><td>7.19</td><td>7.39</td><td>7.56</td><td>7.86</td><td>8.12</td></tr><tr><th scope="row">120°</th><td>3.79</td><td>5.29</td><td>6.33</td><td>6.87</td><td>7.24</td><td>7.57</td><td>7.85</td><td>8.27</td><td>8.64</td></tr><tr><th scope="row">135°</th><td>3.30</td><td>4.71</td><td>5.82</td><td>6.61</td><td>7.05</td><td>7.44</td><td>7.86</td><td>8.79</td><td>9.82</td></tr><tr><th scope="row">150°</th><td>2.71</td><td>3.97</td><td>5.06</td><td>6.01</td><td>6.68</td><td>7.08</td><td>7.45</td><td>8.30</td><td>9.50</td></tr><tr class="run"><th scope="row">Bőszeles TWA</th><td>136.3°</td><td>145.8°</td><td>150.5°</td><td>152.0°</td><td>160.0°</td><td>168.5°</td><td>175.4°</td><td>175.7°</td><td>164.9°</td></tr><tr class="run"><th scope="row">Bőszeles VMG (kn)</th><td>2.35</td><td>3.44</td><td>4.38</td><td>5.21</td><td>5.95</td><td>6.48</td><td>6.87</td><td>7.56</td><td>8.37</td></tr></table>
+      </div>
+      <div class="diagram">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 540" role="img" aria-label="Aiolos – Elan 295 (HUN 295, ORC) polárdiagram, hajósebesség csomóban a TWA függvényében, a 2026-os Club-bizonylat szerint">
+  <rect width="640" height="540" fill="#f8fafc"/>
+  <text x="20" y="26" font-family="system-ui,sans-serif" font-size="16" font-weight="600" fill="#0f172a">Aiolos – Elan 295 (HUN 295), ORC Club 006/26 (2026)</text>
+  <text x="20" y="42" font-family="system-ui,sans-serif" font-size="12" fill="#475569">Hajósebesség (kn) a TWA (valódi szélhez mért szög) szerint.</text>
+  <text x="20" y="56" font-family="system-ui,sans-serif" font-size="12" fill="#475569">A szél az ábra teteje felől fúj; a két oldal a két csapás.</text>
+  <circle cx="320.0" cy="268.0" r="36.0" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="326.0" y="236.0" font-family="system-ui,sans-serif" font-size="10" fill="#64748b">2 kn</text>
+  <circle cx="320.0" cy="268.0" r="72.0" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="326.0" y="200.0" font-family="system-ui,sans-serif" font-size="10" fill="#64748b">4 kn</text>
+  <circle cx="320.0" cy="268.0" r="108.0" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="326.0" y="164.0" font-family="system-ui,sans-serif" font-size="10" fill="#64748b">6 kn</text>
+  <circle cx="320.0" cy="268.0" r="144.0" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="326.0" y="128.0" font-family="system-ui,sans-serif" font-size="10" fill="#64748b">8 kn</text>
+  <circle cx="320.0" cy="268.0" r="180.0" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="326.0" y="92.0" font-family="system-ui,sans-serif" font-size="10" fill="#64748b">10 kn</text>
+  <line x1="320.0" y1="268.0" x2="320.0" y2="85.3" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="320.0" y="77.3" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#334155">0° éles</text>
+  <line x1="320.0" y1="268.0" x2="411.4" y2="109.8" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="320.0" y1="268.0" x2="228.7" y2="109.8" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="416.3" y="105.2" text-anchor="start" font-family="system-ui,sans-serif" font-size="11" fill="#334155">30°</text>
+  <text x="223.7" y="105.2" text-anchor="end" font-family="system-ui,sans-serif" font-size="11" fill="#334155">30°</text>
+  <line x1="320.0" y1="268.0" x2="478.2" y2="176.6" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="320.0" y1="268.0" x2="161.8" y2="176.6" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="486.8" y="175.7" text-anchor="start" font-family="system-ui,sans-serif" font-size="11" fill="#334155">60°</text>
+  <text x="153.2" y="175.7" text-anchor="end" font-family="system-ui,sans-serif" font-size="11" fill="#334155">60°</text>
+  <line x1="320.0" y1="268.0" x2="502.7" y2="268.0" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="320.0" y1="268.0" x2="137.3" y2="268.0" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="512.6" y="272.0" text-anchor="start" font-family="system-ui,sans-serif" font-size="11" fill="#334155">90°</text>
+  <text x="127.4" y="272.0" text-anchor="end" font-family="system-ui,sans-serif" font-size="11" fill="#334155">90°</text>
+  <line x1="320.0" y1="268.0" x2="478.2" y2="359.3" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="320.0" y1="268.0" x2="161.8" y2="359.3" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="486.8" y="368.3" text-anchor="start" font-family="system-ui,sans-serif" font-size="11" fill="#334155">120°</text>
+  <text x="153.2" y="368.3" text-anchor="end" font-family="system-ui,sans-serif" font-size="11" fill="#334155">120°</text>
+  <line x1="320.0" y1="268.0" x2="411.4" y2="426.2" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="320.0" y1="268.0" x2="228.7" y2="426.2" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="416.3" y="438.8" text-anchor="start" font-family="system-ui,sans-serif" font-size="11" fill="#334155">150°</text>
+  <text x="223.7" y="438.8" text-anchor="end" font-family="system-ui,sans-serif" font-size="11" fill="#334155">150°</text>
+  <line x1="320.0" y1="268.0" x2="320.0" y2="450.7" stroke="#cbd5e1" stroke-width="1"/>
+  <text x="320.0" y="466.7" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="#334155">180° bőszeles</text>
+  <polyline points="360.2,229.3 367.9,230.5 376.4,235.4 385.9,250.3 389.7,268.0 386.5,292.2 379.1,302.1 362.0,310.0 360.4,310.3 344.4,310.2" fill="none" stroke="#bae6fd" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="279.8,229.3 272.1,230.5 263.6,235.4 254.1,250.3 250.3,268.0 253.5,292.2 260.9,302.1 278.0,310.0 279.6,310.3 295.6,310.2" fill="none" stroke="#bae6fd" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="360.2" cy="229.3" r="2.6" fill="#bae6fd"/>
+  <circle cx="279.8" cy="229.3" r="2.6" fill="#bae6fd"/>
+  <circle cx="360.4" cy="310.3" r="2.8" fill="#f8fafc" stroke="#bae6fd" stroke-width="1.6"/>
+  <circle cx="279.6" cy="310.3" r="2.8" fill="#f8fafc" stroke="#bae6fd" stroke-width="1.6"/>
+  <polyline points="372.8,212.2 386.9,215.7 397.6,223.2 409.2,244.1 416.8,268.0 412.7,301.7 402.5,315.6 379.9,327.9 362.1,329.9 355.7,329.9" fill="none" stroke="#7dd3fc" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="267.2,212.2 253.1,215.7 242.4,223.2 230.8,244.1 223.2,268.0 227.3,301.7 237.5,315.6 260.1,327.9 277.9,329.9 284.3,329.9" fill="none" stroke="#7dd3fc" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="372.8" cy="212.2" r="2.6" fill="#7dd3fc"/>
+  <circle cx="267.2" cy="212.2" r="2.6" fill="#7dd3fc"/>
+  <circle cx="362.1" cy="329.9" r="2.8" fill="#f8fafc" stroke="#7dd3fc" stroke-width="1.6"/>
+  <circle cx="277.9" cy="329.9" r="2.8" fill="#f8fafc" stroke="#7dd3fc" stroke-width="1.6"/>
+  <polyline points="379.7,199.8 399.9,205.6 411.5,215.2 425.0,239.9 433.0,268.0 429.1,307.7 418.7,325.0 394.1,342.1 365.5,346.9 364.6,346.8" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="260.3,199.8 240.1,205.6 228.5,215.2 215.0,239.9 207.0,268.0 210.9,307.7 221.3,325.0 245.9,342.1 274.5,346.9 275.4,346.8" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="379.7" cy="199.8" r="2.6" fill="#38bdf8"/>
+  <circle cx="260.3" cy="199.8" r="2.6" fill="#38bdf8"/>
+  <circle cx="364.6" cy="346.8" r="2.8" fill="#f8fafc" stroke="#38bdf8" stroke-width="1.6"/>
+  <circle cx="275.4" cy="346.8" r="2.8" fill="#f8fafc" stroke="#38bdf8" stroke-width="1.6"/>
+  <polyline points="383.8,191.1 407.7,199.5 419.3,210.7 433.4,237.6 439.9,268.0 436.9,310.5 427.1,329.8 404.1,352.1 374.1,361.7 369.9,361.8" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="256.2,191.1 232.3,199.5 220.7,210.7 206.6,237.6 200.1,268.0 203.1,310.5 212.9,329.8 235.9,352.1 265.9,361.7 270.1,361.8" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="383.8" cy="191.1" r="2.6" fill="#3b82f6"/>
+  <circle cx="256.2" cy="191.1" r="2.6" fill="#3b82f6"/>
+  <circle cx="369.9" cy="361.8" r="2.8" fill="#f8fafc" stroke="#3b82f6" stroke-width="1.6"/>
+  <circle cx="270.1" cy="361.8" r="2.8" fill="#f8fafc" stroke="#3b82f6" stroke-width="1.6"/>
+  <polyline points="385.5,186.3 411.5,196.5 423.4,208.3 438.2,236.3 443.3,268.0 441.6,312.3 432.9,333.2 409.7,357.7 380.1,372.1 359.0,375.1" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="254.5,186.3 228.5,196.5 216.6,208.3 201.8,236.3 196.7,268.0 198.4,312.3 207.1,333.2 230.3,357.7 259.9,372.1 281.0,375.1" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="385.5" cy="186.3" r="2.6" fill="#2563eb"/>
+  <circle cx="254.5" cy="186.3" r="2.6" fill="#2563eb"/>
+  <circle cx="359.0" cy="375.1" r="2.8" fill="#f8fafc" stroke="#2563eb" stroke-width="1.6"/>
+  <circle cx="281.0" cy="375.1" r="2.8" fill="#f8fafc" stroke="#2563eb" stroke-width="1.6"/>
+  <polyline points="386.0,184.5 413.2,195.2 425.4,207.2 441.4,235.5 447.4,268.0 445.0,313.5 438.0,336.1 414.7,362.7 383.7,378.4 343.7,384.6" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="254.0,184.5 226.8,195.2 214.6,207.2 198.6,235.5 192.6,268.0 195.0,313.5 202.0,336.1 225.3,362.7 256.3,378.4 296.3,384.6" fill="none" stroke="#7c3aed" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="386.0" cy="184.5" r="2.6" fill="#7c3aed"/>
+  <circle cx="254.0" cy="184.5" r="2.6" fill="#7c3aed"/>
+  <circle cx="343.7" cy="384.6" r="2.8" fill="#f8fafc" stroke="#7c3aed" stroke-width="1.6"/>
+  <circle cx="296.3" cy="384.6" r="2.8" fill="#f8fafc" stroke="#7c3aed" stroke-width="1.6"/>
+  <polyline points="386.3,183.8 413.9,194.6 426.3,206.6 443.4,234.9 451.0,268.0 447.9,314.5 442.4,338.6 420.0,368.0 387.0,384.1 329.9,391.7" fill="none" stroke="#c026d3" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="253.7,183.8 226.1,194.6 213.7,206.6 196.6,234.9 189.0,268.0 192.1,314.5 197.6,338.6 220.0,368.0 253.0,384.1 310.1,391.7" fill="none" stroke="#c026d3" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="386.3" cy="183.8" r="2.6" fill="#c026d3"/>
+  <circle cx="253.7" cy="183.8" r="2.6" fill="#c026d3"/>
+  <circle cx="329.9" cy="391.7" r="2.8" fill="#f8fafc" stroke="#c026d3" stroke-width="1.6"/>
+  <circle cx="310.1" cy="391.7" r="2.8" fill="#f8fafc" stroke="#c026d3" stroke-width="1.6"/>
+  <polyline points="387.4,183.6 414.6,194.1 427.1,206.2 445.4,234.4 455.9,268.0 452.9,316.4 448.9,342.4 431.9,379.9 394.7,397.4 330.2,404.1" fill="none" stroke="#e11d48" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="252.6,183.6 225.4,194.1 212.9,206.2 194.6,234.4 184.1,268.0 187.1,316.4 191.1,342.4 208.1,379.9 245.3,397.4 309.8,404.1" fill="none" stroke="#e11d48" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="387.4" cy="183.6" r="2.6" fill="#e11d48"/>
+  <circle cx="252.6" cy="183.6" r="2.6" fill="#e11d48"/>
+  <circle cx="330.2" cy="404.1" r="2.8" fill="#f8fafc" stroke="#e11d48" stroke-width="1.6"/>
+  <circle cx="309.8" cy="404.1" r="2.8" fill="#f8fafc" stroke="#e11d48" stroke-width="1.6"/>
+  <polyline points="389.4,185.6 414.2,194.4 427.1,206.2 445.9,234.3 458.1,268.0 457.3,318.0 454.7,345.8 445.0,393.0 405.5,416.1 360.7,418.7" fill="none" stroke="#9f1239" stroke-width="2.2" stroke-linejoin="round"/>
+  <polyline points="250.6,185.6 225.8,194.4 212.9,206.2 194.1,234.3 181.9,268.0 182.7,318.0 185.3,345.8 195.0,393.0 234.5,416.1 279.3,418.7" fill="none" stroke="#9f1239" stroke-width="2.2" stroke-linejoin="round"/>
+  <circle cx="389.4" cy="185.6" r="2.6" fill="#9f1239"/>
+  <circle cx="250.6" cy="185.6" r="2.6" fill="#9f1239"/>
+  <circle cx="360.7" cy="418.7" r="2.8" fill="#f8fafc" stroke="#9f1239" stroke-width="1.6"/>
+  <circle cx="279.3" cy="418.7" r="2.8" fill="#f8fafc" stroke="#9f1239" stroke-width="1.6"/>
+  <text x="20" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">TWS:</text>
+  <line x1="52" y1="496" x2="68" y2="496" stroke="#bae6fd" stroke-width="3"/>
+  <text x="72" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">4 kn</text>
+  <line x1="117" y1="496" x2="133" y2="496" stroke="#7dd3fc" stroke-width="3"/>
+  <text x="137" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">6 kn</text>
+  <line x1="182" y1="496" x2="198" y2="496" stroke="#38bdf8" stroke-width="3"/>
+  <text x="202" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">8 kn</text>
+  <line x1="247" y1="496" x2="263" y2="496" stroke="#3b82f6" stroke-width="3"/>
+  <text x="267" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">10 kn</text>
+  <line x1="312" y1="496" x2="328" y2="496" stroke="#2563eb" stroke-width="3"/>
+  <text x="332" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">12 kn</text>
+  <line x1="377" y1="496" x2="393" y2="496" stroke="#7c3aed" stroke-width="3"/>
+  <text x="397" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">14 kn</text>
+  <line x1="442" y1="496" x2="458" y2="496" stroke="#c026d3" stroke-width="3"/>
+  <text x="462" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">16 kn</text>
+  <line x1="507" y1="496" x2="523" y2="496" stroke="#e11d48" stroke-width="3"/>
+  <text x="527" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">20 kn</text>
+  <line x1="572" y1="496" x2="588" y2="496" stroke="#9f1239" stroke-width="3"/>
+  <text x="592" y="500" font-family="system-ui,sans-serif" font-size="11" fill="#334155">24 kn</text>
+  <text x="20" y="522" font-family="system-ui,sans-serif" font-size="11" fill="#64748b">A teli pontok az éles TWA-t, az üres körök a bőszeles TWA-t jelölik.</text>
+</svg>
+      </div>
+      <p class="caption">A polárdiagram a fenti tábla értékeit rajzolja ki, mindkét csapásra (bal- és jobbcsapásra) tükrözve. A szél az ábra teteje felől fúj. A teli pontok az éles TWA-t, az üres körök a bőszeles TWA-t jelölik.</p>
+
+      <h3 id="nincs-adat">Ahol nincs táblabeli adat</h3>
+      <p>A polár csak bizonyos szelekre és TWA-kra ad kész számot. Ahol nincs táblabeli pont, a tervező így számol:</p>
+      <ul>
+        <li>A széloszlopok között (például 9 csomó, vagy az Aiolosnál 22 csomó a 20 és 24 csomós oszlop között) a szomszédos oszlopok között lineárisan interpolál.</li>
+        <li>A polár saját legalacsonyabb széloszlopa alatt a sebességet arányosan csökkenti; a szögek a legalsó oszlopéi maradnak.</li>
+        <li>A legmagasabb széloszlop felett (Aiolosnál 24, Elan 310-nél 20 csomó, saját polárnál a tábla utolsó oszlopa) ennek az oszlopnak az értékeit használja: nem extrapolál, és nem gyorsít tovább.</li>
+        <li>A táblabeli TWA-pontok között lineárisan interpolál.</li>
+        <li>10° és az éles TWA között a sebesség úgy emelkedik, hogy a szél felé mutató VMG pontosan a bizonylat éles TWA-ján a legnagyobb.</li>
+        <li>10°-nál kisebb TWA-n a hajó a modell szerint nem halad (0 csomó).</li>
+        <li>Az utolsó táblabeli TWA (150°) után, 180° felé, jelenleg a tábla utolsó két pontjából lineárisan extrapolál. A hátszeles, bőszeles extrapoláció még fejlesztés alatt van.</li>
+      </ul>
+
+      <h2>Hogyan működik az izokron módszer?</h2>
+      <p>A tervező nem egyetlen egyenest húz a térképre, hanem időről időre azt nézi: <em>innen, ebben a szélben, merre jutok el a következő lépésben?</em></p>
+      <ul>
+        <li>Az indulópontból sok irányba kiszámolja, meddig jut a hajó egy rövid időlépésben. A lépés általában kb. hatperces, de gyenge szélben vagy a Tihanyi-szorosban rövidebb, hogy a tervező ne akadjon el, és a szűk vízen pontosabb legyen.</li>
+        <li>A vízben maradó, leghamarabb elért pontokból új frontvonalat, izokront rajzol: ez az a görbe, ameddig a hajó adott idő alatt eljuthat.</li>
+        <li>Ezt ismétli, mindig a legtávolabbra jutott frontot viszi tovább. A szárazföldre, a tilos vagy sekély sávra eső lépéseket elveti.</li>
+        <li>Ha a cél közelébe ér (kb. 0,35 tengeri mérföld), az utolsó szakaszt még hozzáadja, és <strong>visszafelé</strong> összeköti a pontokat: ez lesz a javasolt útvonal.</li>
+      </ul>
+      <p>A Tihanyi-szorosban a tervező a kitűzött hajóutat (a kardinális jelek közötti „csövet”) külön is figyelembe veszi, hogy ne vágjon át a félszigeten vagy a Zamárdi–Szántód homokpadon.</p>
+      <div class="diagram">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280" role="img" aria-label="Izokron frontok a rajttól a célig">
+          <rect width="640" height="280" fill="#f8fafc"/>
+          <text x="20" y="28" font-family="system-ui,sans-serif" font-size="16" fill="#0f172a">Az izokron: egyre távolabbi időfrontok</text>
+          <ellipse cx="140" cy="160" rx="50" ry="36" fill="none" stroke="#93c5fd" stroke-width="2"/>
+          <ellipse cx="200" cy="150" rx="90" ry="58" fill="none" stroke="#60a5fa" stroke-width="2"/>
+          <ellipse cx="280" cy="145" rx="130" ry="78" fill="none" stroke="#3b82f6" stroke-width="2"/>
+          <ellipse cx="380" cy="140" rx="160" ry="92" fill="none" stroke="#1d4ed8" stroke-width="2"/>
+          <polyline points="140,160 210,138 300,128 400,122 520,118" fill="none" stroke="#0f172a" stroke-width="3"/>
+          <circle cx="140" cy="160" r="7" fill="#22c55e"/>
+          <circle cx="520" cy="118" r="7" fill="#ef4444"/>
+          <text x="118" y="190" font-family="system-ui,sans-serif" font-size="13" fill="#166534">rajt</text>
+          <text x="500" y="108" font-family="system-ui,sans-serif" font-size="13" fill="#991b1b">cél</text>
+          <text x="170" y="250" font-family="system-ui,sans-serif" font-size="13" fill="#334155">minden gyűrű egy későbbi időpont: merre lehet addig eljutni</text>
+          <text x="170" y="268" font-family="system-ui,sans-serif" font-size="13" fill="#334155">a sötét vonal a leggyorsabb ág, visszafelé összekötve</text>
+        </svg>
+      </div>
+
+      <h2>Számol-e a tervező a fordulás időveszteségével?</h2>
+      <p><strong>Nincs.</strong> A tervező nem ad hozzá plusz időt fordulásonként vagy halzolásonként. Azt a polár és a holtszög már eleve tartalmazza, hogy élesebben lassabban megy a hajó, de a manőver idejét külön nem modellezi. Éles menetben ezért a számított idő egy kicsit derűlátó lehet.</p>
+
+      <h2>A déli sekély sáv és a part</h2>
+      <p>A tervező nem megy át a szárazföldön, és a Tihanyi-félszigetet külön is tiltott területként kezeli. A déli part mentén figyelembe veszi a <strong>marásvonal</strong> / déli sekély pad sávját (KDTVIZIG-alapú sáv, Szántódnál megszakítva), valamint a szoros délkeleti oldalán a Zamárdi–Szántód homokpadot. A tihanyi átjárásra a kardinális jelek közötti hajóutat használja.</p>
+      <p>Ez nem teljes medertérkép. Nem ismer minden akadályt, mélységváltozást, kikötői és fürdőzónát, mesterséges ívóhelyet vagy munkaterületet. A hivatalos pályajelek, kardinális jelek és a Hajósoknak szóló hirdetmények a mérvadók.</p>
+
+      <h2>Mennyi ideig számol?</h2>
+      <p>A tervező időhorizontja <strong>legfeljebb 36 óra</strong>, vagy rövidebb, ha az adott modell előrejelzése hamarabb véget ér. Az ICON-D2-t kb. 48 órára kéri le; jó szélben egy Balaton-kerülő jellemzően 15–25 óra, tehát a rövid távú modell is lefedheti a teljes kört. Hosszú, lassú futamon (például nagyon gyenge szélben, Keszthely–Almádi 1,5 csomó körül) a 36 óra kevés lehet: ha a hajó ennyi idő alatt nem ér célba, a tervező addig a pontig, ahol a legközelebb jutott a célhoz, ad részleges útvonalat, és jelzi a hátralévő távot. Ha több modellt jelölsz ki, mindegyikre külön útvonal készül a saját horizontjáig; a tervező egy útvonalon belül nem vált át automatikusan egy másik modellre.</p>
+
+      <h2>Kezdőpont, versenypontok, megosztás és GPX</h2>
+      <p>A kezdőpontot a listából, a <strong>Jelenlegi pozíció</strong> gombbal vagy a térképre koppintva (vagy hosszan megnyomva) is beállíthatod. A <strong>Verseny</strong> listából a hivatalosan közölt pályajelek kerülnek a térképre és a Start/Cél listába; ahol a versenyutasítás nem ad GPS-t, ott a tervező ezt jelzi, és nem talál ki koordinátát. A saját, elnevezett pontok a böngészőben, helyben menthetők.</p>
+      <p>A tervező jelenleg egy szakaszt számol, A-ból B-be. A többbójás pálya (például Kékszalag: Füred–Kenese–Siófok–Keszthely–Füred) későbbi fejlesztés.</p>
+      <p>A <strong>Megosztás</strong> gomb a linkbe teszi a kiszámolt útvonalat: a vonal pontjait, az érkezést és azt, hogy melyik előrejelzési futásból készült. Megnyitáskor a címzett azonnal látja ugyanazt a vonalat, számolás nélkül. Mellé kerül egy „Számold újra friss széllel” gomb; használata nem kötelező. Újraszámolás után a megszokott élő tervezés folytatódik, és a következő megosztás már az új útvonalat adja.</p>
+      <p>A <strong>GPX-letöltés</strong> szabványos, 1.1-es verziójú GPX-fájlt ad, útvonallal és nyomvonallal, időbélyegekkel. A nagyobb irányváltások „Pont 1, 2…” néven szerepelnek — ezek nem feltétlenül versenyfordulók, csak a vonal töréspontjai. A fájl chartplotterbe, OpenCPN-be vagy Navionicsba tölthető.</p>
+
+      <h2>Korlátok és felelősség</h2>
+      <p>A tervező tájékoztató jellegű hobbieszköz. Az útvonal tévedhet. Nem helyettesíti a körültekintő hajózást, a saját ítélőképességet, és <strong>nem helyettesíti a hivatalos előrejelzéseket és figyelmeztetéseket, például a viharjelző fényeket</strong>. Mindenki saját felelősségére használja; a készítő nem vállal felelősséget kárért, például zátonyra futásért.</p>
+
+      <h2 id="sajat-polar">Visszajelzés és saját polár</h2>
+      <p>Saját polárt a tervezőből küldhetsz be, GitHub-fiók nélkül: a hajóválasztónál a „Saját polárt is beküldhetsz” link, vagy a lábléc Visszajelzés linkje nyitja az űrlapot. A beküldést egy háttérszolgáltatás rögzíti, Turnstile-lel és beküldési gyakoriságkorláttal védve. Polárhoz CSV-sablon van, és a hajónév közzétételéhez külön engedély kell.</p>
+      <p>A tervezőt a Ko-fi oldalon lehet támogatni, de ez nem jár plusz funkcióval.</p>
+    </article>
+  </div>
+  <footer class="site-footer">
+    <p class="footer-links">
+      <a href="index.html">← Vissza a tervezőhöz</a>
+      ·
+      <a href="https://ko-fi.com/balatonrouting" target="_blank" rel="noopener">☕ Támogatás (Ko-fi)</a>
+      ·
+      <a href="https://revolut.me/benedeknagy" target="_blank" rel="noopener">Apple Pay / Google Pay (Revolut)</a>
+    </p>
+    <p>A tervező tájékoztató jellegű hobbieszköz. Nem helyettesíti a körültekintő hajózást és a hivatalos viharjelző fényeket. Mindenki saját felelősségére használja.</p>
+    <p class="credit">Logó: tóvonal © az OpenStreetMap közreműködői</p>
+    <p class="impresszum">Készítette: Nagy Benedek · <a href="mailto:info@nbsailing.hu">info@nbsailing.hu</a> · <a href="https://nbsailing.hu" target="_blank" rel="noopener">nbsailing.hu</a></p>
+  </footer>
+</body>
+</html>

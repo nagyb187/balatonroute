@@ -151,12 +151,12 @@ const optionExpr = `(sel) => Array.from(document.getElementById(sel).options).ma
     start: Array.from(document.getElementById('startSelect').options).map(o => o.value),
     target: Array.from(document.getElementById('targetSelect').options).map(o => o.value),
     geoBtn: document.getElementById('geoBtn') && document.getElementById('geoBtn').textContent.trim(),
-    noHowto: !document.querySelector('a[href="howto.html"]') && !document.body.innerText.includes('Hogyan működik?'),
+    howto: !!document.querySelector('a[href="howto.html"]'),
     marks: document.querySelectorAll('.race-mark-dot').length
   })`);
   report.boot = boot;
-  if (boot.ready && boot.race === 'byc-szolo' && boot.geoBtn === 'Jelenlegi pozíció' && boot.noHowto) ok('boot: default race, geo label, no howto link');
-  else fail('boot: default race, geo label, no howto link', JSON.stringify(boot));
+  if (boot.ready && boot.race === 'byc-szolo' && boot.geoBtn === 'Jelenlegi pozíció' && boot.howto) ok('boot: default race, geo label, howto link');
+  else fail('boot: default race, geo label, howto link', JSON.stringify(boot));
 
   const ids = (boot.raceOptions || []).map(o => o.id);
   const labels = (boot.raceOptions || []).map(o => o.label);
@@ -595,6 +595,29 @@ const optionExpr = `(sel) => Array.from(document.getElementById(sel).options).ma
   if (desk.errs.length === 0) ok('desktop marks tests no JS errors');
   else fail('desktop marks tests no JS errors', desk.errs.join(' | '));
 
+  // HowTo page
+  await sessionGotoHowto(desk, BASE + 'howto.html');
+  const howto = await ev(desk, `({
+    title: document.title,
+    h1: document.querySelector('.header h1') && document.querySelector('.header h1').textContent,
+    elan: /Elan 310/.test(document.body.innerText) && !/Nautic 311/.test(document.body.innerText) && !/választó kulcsa/.test(document.body.innerText) && !/elan310/.test(document.body.innerText),
+    aiolos: document.body.innerText.includes('Aiolos') && document.body.innerText.includes('Elan 295') && document.body.innerText.includes('HUN 295') && document.body.innerText.includes('ORC') && !/választó kulcsa/.test(document.body.innerText),
+    svgs: document.querySelectorAll('svg').length,
+    back: !!document.querySelector('a[href="index.html"]'),
+    hasElan295: /Elan 295/.test(document.body.innerText),
+    noStalker: !/Stalker/.test(document.body.innerText)
+  })`);
+  report.howto = howto;
+  if (howto.elan && howto.aiolos && howto.svgs >= 2 && howto.back && howto.hasElan295 && howto.noStalker)
+    ok('howto.html polar keys/labels and SVGs', howto);
+  else fail('howto.html polar keys/labels and SVGs', JSON.stringify(howto));
+  await ev(desk, `window.scrollTo(0,0)`);
+  await sleep(200);
+  await screenshot(desk, path.join(OUT, 'desktop-howto.png'));
+  await ev(desk, `const h = document.querySelector('h2'); if (h && h.textContent.includes('polár')) h.scrollIntoView({block:'start'});`);
+  await sleep(200);
+  await screenshot(desk, path.join(OUT, 'desktop-howto-polar.png'));
+
   desk.ws.close();
   dch.kill();
 
@@ -649,6 +672,11 @@ const optionExpr = `(sel) => Array.from(document.getElementById(sel).options).ma
   await screenshot(mob, path.join(OUT, 'mobile-map-pick.png'));
   await screenshot(mob, path.join(OUT, 'waypoint-mobile-popup.png'));
 
+  await sessionGotoHowto(mob, BASE + 'howto.html');
+  await ev(mob, `window.scrollTo(0,0)`);
+  await sleep(200);
+  await screenshot(mob, path.join(OUT, 'mobile-howto.png'));
+
   if (mob.errs.length === 0) ok('mobile marks tests no JS errors');
   else fail('mobile marks tests no JS errors', mob.errs.join(' | '));
   mob.ws.close();
@@ -661,3 +689,9 @@ const optionExpr = `(sel) => Array.from(document.getElementById(sel).options).ma
   console.log(JSON.stringify(summary, null, 2));
   process.exit(failed.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
+
+async function sessionGotoHowto(session, url) {
+  await session.send('Page.navigate', { url });
+  await session.send('Page.loadEventFired');
+  await sleep(400);
+}
