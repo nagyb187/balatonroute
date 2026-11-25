@@ -168,29 +168,102 @@ else fail('4/24 table speeds', JSON.stringify({ s4: getBoatSpeed(A, 4, 90).speed
   globalThis.__aiolosN = aiolosN;
 })();
 
-// --- Downwind: committed behaviour, no run in polarActions ---
+// --- Downwind: Elan (no run data) keeps 135–150 linear extrapolation ---
 (function () {
-  const actsA = polarActions(A, { spd: 12, dir: 0 });
   const actsE = polarActions(E, { spd: 12, dir: 0 });
-  const runLikeA = actsA.filter(a => a.twa > 150);
   const runLikeE = actsE.filter(a => a.twa > 150);
-  if (runLikeA.length === 0 && runLikeE.length === 0 && actsA.length === 2 + 8 * 2)
-    ok('polarActions: beat + table angles only, no bőszeles/run gybes (Aiolos and Elan 310)');
-  else fail('polarActions run', JSON.stringify({ nA: actsA.length, runA: runLikeA, nE: actsE.length }));
+  if (runLikeE.length === 0 && actsE.length === 2 + 8 * 2)
+    ok('polarActions Elan 310: beat + table angles only (no run data, no bőszeles gybes)');
+  else fail('polarActions Elan', JSON.stringify({ nE: actsE.length, runE: runLikeE }));
 
-  // Linear interpolation 135-150 and extrapolation after 150 (Elan, no run used)
   const s135 = getBoatSpeed(E, 10, 135).speed;
   const s150 = getBoatSpeed(E, 10, 150).speed;
   const s165 = getBoatSpeed(E, 10, 165).speed;
   const exp = s150 + (165 - 150) / (150 - 135) * (s150 - s135);
   if (almost(s150, 6.12) && almost(s165, exp, 1e-9))
-    ok('Elan 310 (and Aiolos) after 150°: linear extrapolation from 135° and 150°');
+    ok('Elan 310 after 150°: linear extrapolation from 135° and 150° (no run data)');
   else fail('extrap 150', JSON.stringify({ s135, s150, s165, exp }));
+})();
 
-  // Aiolos 12 kt 150 is official 6.68, not replaced by run point
+// --- Downwind C2: Aiolos uses certificate run TWA/VMG ---
+(function () {
+  // 12 kt run is 160.0°; 150° is the nearer table anchor, table speed stays
   if (almost(getBoatSpeed(A, 12, 150).speed, 6.68))
-    ok('Aiolos 12 kt 150° stays the table speed 6.68 (run data unused)');
-  else fail('aiolos 150 unused run', getBoatSpeed(A, 12, 150).speed);
+    ok('Aiolos 12 kt 150° stays the table speed 6.68 (C2 anchor)');
+  else fail('aiolos 12 kt 150', getBoatSpeed(A, 12, 150).speed);
+
+  const actsA12 = polarActions(A, { spd: 12, dir: 0 });
+  const runLike = actsA12.filter(a => Math.abs(a.twa - 160) < 1e-9);
+  if (actsA12.length === 2 + 8 * 2 + 2 && runLike.length === 2)
+    ok('polarActions Aiolos 12 kt includes the certificate run TWA (160°) on both tacks');
+  else fail('polarActions Aiolos run', JSON.stringify({ n: actsA12.length, runLike }));
+
+  // 6 kt: run is before 150°, so 150° is on the C2 parabola, not the table value 3.97
+  const s6_150 = getBoatSpeed(A, 6, 150).speed;
+  if (almost(s6_150, 3.953, 5e-3) && !almost(s6_150, 3.97, 1e-3))
+    ok('Aiolos 6 kt 150° is C2 (' + s6_150.toFixed(3) + '), not the unused table 3.97');
+  else fail('aiolos 6 kt 150 C2', s6_150);
+
+  // C2 opt TWA/VMG must match the demo table at 6/10/16/20/24 kn
+  const demo = [
+    { w: 6,  twaLo: 145.5, twaHi: 146.1, vmg: 3.440, v180: 2.342 },
+    { w: 10, twaLo: 151.9, twaHi: 152.1, vmg: 5.210, v180: 4.193 },
+    { w: 16, twaLo: 175.0, twaHi: 175.8, vmg: 6.870, v180: 6.856 },
+    { w: 20, twaLo: 175.3, twaHi: 176.1, vmg: 7.560, v180: 7.550 },
+    { w: 24, twaLo: 164.5, twaHi: 165.3, vmg: 8.370, v180: 8.223 }
+  ];
+  let bad = [];
+  const rows = [];
+  for (const d of demo) {
+    const idx = A.winds.indexOf(d.w);
+    const certTwa = A.runAngles[idx];
+    const certVmg = A.runVMG[idx];
+    const atRun = getBoatSpeed(A, d.w, certTwa);
+    const dwAtRun = atRun.speed * Math.abs(Math.cos(certTwa * Math.PI / 180));
+    if (!almost(dwAtRun, certVmg, 1e-9))
+      bad.push(d.w + ' kt at cert run VMG ' + dwAtRun + ' != ' + certVmg);
+
+    let maxV = -1, maxT = null;
+    for (let twa = 90; twa <= 180 + 1e-12; twa += 0.05) {
+      const r = getBoatSpeed(A, d.w, twa);
+      const v = r.speed * Math.abs(Math.cos(twa * Math.PI / 180));
+      if (v > maxV + 1e-12) { maxV = v; maxT = twa; }
+    }
+    const inRange = maxT >= d.twaLo - 1e-9 && maxT <= d.twaHi + 1e-9;
+    if (!inRange || !almost(maxV, d.vmg, 5e-4) || !almost(maxV, certVmg, 5e-4))
+      bad.push(d.w + ' kt opt ' + maxT + '° / ' + maxV.toFixed(4) +
+        ' (expected ' + d.twaLo + '–' + d.twaHi + ' / ' + d.vmg + ', cert ' + certTwa + ' / ' + certVmg + ')');
+
+    const v180 = getBoatSpeed(A, d.w, 180).speed; // at 180, speed == |VMG|
+    if (!almost(v180, d.v180, 5e-3))
+      bad.push(d.w + ' kt V(180) ' + v180 + ' != demo ' + d.v180);
+
+    // After run, VMG must not beat the certificate peak
+    let afterBetter = false;
+    for (let twa = certTwa + 0.05; twa <= 180 + 1e-12; twa += 0.25) {
+      const r = getBoatSpeed(A, d.w, twa);
+      const v = r.speed * Math.abs(Math.cos(twa * Math.PI / 180));
+      if (v > certVmg + 1e-4) { afterBetter = true; break; }
+    }
+    if (afterBetter) bad.push(d.w + ' kt VMG after run exceeds cert');
+
+    // Above max wind: 30 kt uses the 24 kt C2 column
+    if (d.w === 24) {
+      const v30 = getBoatSpeed(A, 30, certTwa).speed * Math.abs(Math.cos(certTwa * Math.PI / 180));
+      if (!almost(v30, certVmg, 1e-9))
+        bad.push('30 kt run VMG ' + v30 + ' != 24 kt column ' + certVmg);
+    }
+
+    rows.push({ w: d.w, optTwa: maxT, optVmg: maxV, v180, certTwa, certVmg });
+  }
+  if (!bad.length)
+    ok('Aiolos C2 opt TWA/VMG matches demo at 6/10/16/20/24 kn; VMG does not improve after run; 30 kt uses 24 kt column');
+  else fail('C2 demo table', bad.join(' | '));
+  rows.forEach(r => console.log(
+    '  C2 ' + r.w + ' kn  opt ' + r.optTwa.toFixed(1) + '° / ' + r.optVmg.toFixed(3) +
+    '  cert ' + r.certTwa.toFixed(1) + '° / ' + r.certVmg.toFixed(2) +
+    '  V180=' + r.v180.toFixed(3)
+  ));
 })();
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
