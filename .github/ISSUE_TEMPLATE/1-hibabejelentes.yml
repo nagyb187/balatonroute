@@ -1,0 +1,49 @@
+name: 🐞 Hibabejelentés
+description: Valami nem úgy működik a balatonrouting.hu-n, ahogy kellene.
+title: "[Hiba] "
+labels: ["hiba"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Köszönjük, hogy szólsz! A jegy **nyilvános**, ne írj bele személyes adatot.
+        GitHub-fiók nélkül is beküldheted a [balatonrouting.hu](https://balatonrouting.hu/#visszajelzes) **Visszajelzés** űrlapján, vagy írj: info@nbsailing.hu
+  - type: textarea
+    id: mi-tortent
+    attributes:
+      label: Mi történt? Mit vártál helyette?
+      placeholder: pl. Az útvonal átmegy a Tihanyi-félszigeten.
+    validations:
+      required: true
+  - type: textarea
+    id: lepesek
+    attributes:
+      label: Hogyan lehet előidézni?
+      description: Hajó, rajt és cél, indulási idő, modell(ek). Ha van, másold be a megosztott útvonal linkjét.
+      placeholder: |
+        1. Elan 310, Szóló Rajt → Szóló Aliga
+        2. Indulás: holnap 9:00, AROME
+        3. „Isochrone útvonal”
+    validations:
+      required: false
+  - type: input
+    id: kornyezet
+    attributes:
+      label: Eszköz és böngésző
+      placeholder: pl. iPhone 15, Safari / Windows, Chrome
+    validations:
+      required: false
+  - type: textarea
+    id: kepek
+    attributes:
+      label: Képernyőkép
+      description: Ide húzhatod a képet.
+    validations:
+      required: false
+  - type: checkboxes
+    id: nyilvanos
+    attributes:
+      label: Nyilvánosság
+      options:
+        - label: Megértettem, hogy ez a jegy nyilvános lesz.
+          required: true

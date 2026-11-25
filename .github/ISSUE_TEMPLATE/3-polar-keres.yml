@@ -1,0 +1,69 @@
+name: ⛵ Polár beküldése
+description: Küldd be a hajód polárját, hogy bekerüljön a tervezőbe.
+title: "[Polár-kérés] "
+labels: ["polár-kérés"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A polárt CSV-ként várjuk: **sorok = valós szélszög (TWA, fok)**, **oszlopok = valós szélsebesség (TWS, csomó)**, a cellákban a hajósebesség csomóban.
+        Sablon: [polars/template.csv](https://github.com/nagyb187/balatonroute/blob/main/polars/template.csv). Részletek a [README-ben](https://github.com/nagyb187/balatonroute#polár-csv-formátum).
+        A jegy **nyilvános**. GitHub-fiók nélkül a [balatonrouting.hu](https://balatonrouting.hu/#visszajelzes) **Visszajelzés → Polár beküldése** űrlapján is beküldheted, ott a CSV-t azonnal ellenőrizzük.
+  - type: input
+    id: hajotipus
+    attributes:
+      label: Hajótípus
+      placeholder: pl. Elan 310
+    validations:
+      required: true
+  - type: input
+    id: hajonev
+    attributes:
+      label: Hajónév (nem kötelező)
+      description: "Figyelem: ez a jegy nyilvános, az ide írt név azonnal látszik. Csak akkor add meg, ha a hajó tulajdonosa vagy, vagy engedélyed van rá, és lent bejelölöd a hozzájárulást. Különben hagyd üresen (a webes űrlapon hozzájárulás nélkül el sem küldjük a nevet)."
+      placeholder: pl. Szélvész
+    validations:
+      required: false
+  - type: dropdown
+    id: forras
+    attributes:
+      label: A polár forrása
+      options:
+        - ORC-bizonyítvány
+        - Gyártói / tervezői polár
+        - Saját mérés (pl. műszerlog)
+        - Becslés / tapasztalat
+        - Egyéb
+    validations:
+      required: true
+  - type: textarea
+    id: csv
+    attributes:
+      label: Polár CSV
+      description: Másold be a CSV tartalmát (vessző, pontosvessző vagy tabulátor is jó).
+      render: csv
+      placeholder: |
+        TWA\TWS,6,8,10,12,14,16,20
+        52,4.87,5.76,6.41,6.73,6.87,6.92,6.96
+        60,5.16,6.07,6.62,6.90,7.05,7.12,7.15
+    validations:
+      required: true
+  - type: textarea
+    id: megjegyzes
+    attributes:
+      label: Megjegyzés
+      description: Nyilvános! Ne írj bele vitorlaszámot, nevet, telefonszámot.
+      placeholder: pl. teljes vitorlázat, versenyterhelés
+    validations:
+      required: false
+  - type: checkboxes
+    id: hozzajarulas
+    attributes:
+      label: Hozzájárulás
+      options:
+        - label: Jogom van megosztani ezt a polárt, és hozzájárulok, hogy a tervezőben bárki használhassa.
+          required: true
+        - label: Megértettem, hogy ez a jegy nyilvános lesz.
+          required: true
+        - label: A hajó tulajdonosa vagyok, vagy engedélyem van rá, és hozzájárulok, hogy a hajó neve megjelenjen a nyilvános polárlistában. (Ha nem jelölöd be, a listában csak a típus látszik.)
+          required: false
