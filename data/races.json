@@ -200,12 +200,12 @@
     },
     {
       "id": "ezustszalag-2025",
-      "label": "Ezüstszalag 2025 (2025-ös adat, ellenőrizendő)",
+      "label": "Ezüstszalag 2025",
       "year": 2025,
       "sourceUrl": "https://spartacus.hu/media/2025/03/ESZ_SI_2025_v1.pdf",
       "sourceLabel": "IT Klima Service Ezüst Szalag versenyutasítás, 2025",
       "siUrl": "https://spartacus.hu/media/2025/03/ESZ_SI_2025_v1.pdf",
-      "verifyNote": "2025-ös hivatalos koordináta. A 2026-os versenyutasítást élesítés előtt egyeztetni kell.",
+      "verifyNote": null,
       "includeFured": false,
       "marks": [
         {

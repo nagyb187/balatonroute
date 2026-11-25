@@ -166,7 +166,7 @@ const optionExpr = `(sel) => Array.from(document.getElementById(sel).options).ma
       && labels.includes('Kékszalag 2026')
       && labels.includes('Fehér Szalag 2026')
       && labels.includes('Flexfleet Klasszikus Szóló 2026')
-      && labels.includes('Ezüstszalag 2025 (2025-ös adat, ellenőrizendő)'))
+      && labels.includes('Ezüstszalag 2025'))
     ok('race selector labels and ids');
   else fail('race selector labels and ids', JSON.stringify({ ids, labels, expectedIds }));
 
@@ -239,7 +239,7 @@ const optionExpr = `(sel) => Array.from(document.getElementById(sel).options).ma
   if (others.flex.start.includes('flex_kapu_kardinalis') || others.flex.start.includes('flex_rajt')) oFail.push('flex extra marks');
   if (/nincs közölt GPS/i.test(others.flex.notes || '')) oFail.push('flex unpublished notes');
   if (others.ezust.start.filter(v => v && v !== 'manual').length !== 1 || !others.ezust.start.includes('ezust_gyorok')) oFail.push('ezust only gyorok');
-  if (!/2025/.test(others.ezust.meta) || !/egyeztetni/.test(others.ezust.meta)) oFail.push('ezust year note');
+  if (!/2025/.test(others.ezust.meta) || /egyeztetni/.test(others.ezust.meta)) oFail.push('ezust year only');
   if (/nincs közölt GPS/i.test(others.ezust.notes || '')) oFail.push('ezust unpublished notes');
   if (oFail.length === 0) ok('Fehér, Flexfleet, Ezüst official marks only');
   else fail('Fehér, Flexfleet, Ezüst official marks only', oFail.join('; ') + ' ' + JSON.stringify(others));
